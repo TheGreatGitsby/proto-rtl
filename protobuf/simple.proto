@@ -1,0 +1,31 @@
+// See README.txt for information and build instructions.
+//
+// Note: START and END tags are used in comments to define sections used in
+// tutorials.  They are not part of the syntax for Protocol Buffers.
+//
+// To get an in-depth walkthrough of this file and the related examples, see:
+// https://developers.google.com/protocol-buffers/docs/tutorials
+
+// [START declaration]
+syntax = "proto3";
+package simple;
+
+// [START messages]
+message Person {
+  uint32 name = 1;
+  uint32 id = 2;  // Unique ID number for this person.
+  uint32 email = 3;
+
+  message PhoneNumber {
+    uint32 number = 1;
+    uint32 type = 2;
+  }
+
+  repeated PhoneNumber phones = 4;
+}
+
+// Our address book file is just one of these.
+message AddressBook {
+  repeated Person people = 1;
+}
+// [END messages]

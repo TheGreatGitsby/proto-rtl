@@ -27,7 +27,7 @@ begin
 
 --! @brief DUT Port Map
 -- {{{
-template: entity work.template
+protoDeserialize: entity work.protoDeserialize
    port map (
      protoStream_i     => protoStream_i,  -- std_logic_vector(7 downto 0);
      key_o             => key_o,          -- std_logic_vector(1 downto 0);

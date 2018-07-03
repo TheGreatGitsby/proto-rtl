@@ -33,7 +33,7 @@ protoDeserialize: entity work.protoDeserialize
      key_o             => key_o,          -- std_logic_vector(1 downto 0);
      data_o            => data_o,         -- std_logic_vector;
      messageValid_o    => messageValid_o, -- std_logic;
-     fieldValid_o      => fieldValid_o,   -- std_logic
+     fieldValid_o      => fieldValid_o   -- std_logic
 );
    -- }}}
 

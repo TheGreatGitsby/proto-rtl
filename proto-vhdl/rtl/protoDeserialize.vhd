@@ -1,6 +1,7 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
+use work.template_pkg.all;
 
 --! Entity Declaration
 -- {{{
@@ -23,8 +24,14 @@ architecture arch of protoDeserialize is
 -- {{{
 signal wireType : std_logic_vector(2 downto 0);
 signal fieldNumber : unsigned(4 downto 0);
-signal fieldNumber_reg : unsigned(4 downto 0);
+signal fieldNumber_reg : natural;
 signal varintCount : natural range 0 to 8;
+signal lengthDelimited : std_logic_vector(NUM_FIELDS-1 downto 0);
+signal lengthDelimited_numBytes : delimitLength_t; 
+
+type varint_reg_t is array (0 to VARINT_NUM_BYTES_MAX-1) of std_logic_vector(6 downto 0);
+signal varint_reg : varint_reg_t;
+
 type state_t is (IDLE, VARINT_KEY, VARINT_DECODE, LENGTH_DELIMITED_DECODE); 
 signal  state : state_t := IDLE;
 -- }}}
@@ -37,20 +44,17 @@ begin
    -- {{{
    
    wireType <= protostream_i(2 downto 0);
-   fieldNumber <= (unsigned)protostream_i(7 downto 3);
+   fieldNumber <= unsigned(protostream_i(7 downto 3));
 
    process(clk_i)
    variable fieldNumber_var : unsigned(4 downto 0);
    begin
       if rising_edge(clk_i) then
+      --defaults
+      fieldValid_o <= '0';
+      data_o <= (others => '0');
+      
          if reset_i = '1' then
-            state <= IDLE;
-         else
-
-         --defaults
-         fieldValid_o <= '0';
-         data_o <= (others => '0');
-         is reset_i = '1' then
             state <= IDLE;
          else
 
@@ -58,7 +62,7 @@ begin
             when IDLE =>
 
             when VARINT_KEY => 
-               fieldNumber_reg <= fieldNumber;
+               fieldNumber_reg <= to_integer(unsigned(fieldNumber));
                -- get parameter type and see if it's
                -- repeated based on fieldNumber
                --isRepeated(fieldNumber_var) <= something;
@@ -81,21 +85,22 @@ begin
                end case;
 
             when LENGTH_DELIMITED_DECODE =>
-               lengthDelimited_numBytes(fieldNumber_reg) <= protoStream_i;
+               lengthDelimited_numBytes(fieldNumber_reg) <= to_integer(unsigned(protoStream_i));
                state <= VARINT_KEY;
 
             when VARINT_DECODE =>
                varintCount <= varintCount + 1;
-               varint_reg(varintCount) <= protostream(6 downto 0);
-               if (protostream(7) = '0') then
+               varint_reg(varintCount) <= protostream_i(6 downto 0);
+               if (protostream_i(7) = '0') then
                   -- end of decode
-                  for i in 0 to NUM_BYTES_MAX-1 loop
+                  for i in 0 to VARINT_NUM_BYTES_MAX-1 loop
                      data_o((i*7)+6 downto (i*7)) <= varint_reg(i);
-                  end loop
+                  end loop;
                   fieldValid_o <= '1';
                   state <= VARINT_KEY;
                end if;
-            end if;
+               end case;
+             end if;
          end if;
          end process
 

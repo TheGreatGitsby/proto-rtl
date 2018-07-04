@@ -26,8 +26,8 @@ signal wireType : std_logic_vector(2 downto 0);
 signal fieldNumber : unsigned(4 downto 0);
 signal fieldNumber_reg : natural;
 signal varintCount : natural range 0 to 8;
-signal lengthDelimited : std_logic_vector(NUM_FIELDS-1 downto 0);
-signal lengthDelimited_numBytes : delimitLength_t; 
+signal delimitCountStack : delimitLength_t; 
+signal delimitStack_idx : natural range 0 to MAX_EMBEDDED_DELIMITS;
 signal lengthDelimited_count : delimitLength_t; 
 
 type varint_reg_t is array (0 to VARINT_NUM_BYTES_MAX-1) of std_logic_vector(6 downto 0);
@@ -81,13 +81,12 @@ begin
                      -- could be an embedded message or a
                      -- packed repeated field.
                      state <= LENGTH_DELIMITED_DECODE;
-                     lengthDelimited(fieldNumber_reg) <= '1';
                   when OTHERS =>
                      -- not yet implemented
                end case;
 
             when LENGTH_DELIMITED_DECODE =>
-               lengthDelimited_numBytes(fieldNumber_reg) <= to_integer(unsigned(protoStream_i));
+               -- do nothing, handled in other process
                state <= VARINT_KEY;
 
             when VARINT_DECODE =>
@@ -108,44 +107,38 @@ begin
 
          -- This process figures out when to toggle messageValid_o
          -- based on delimited setting
-         process(lengthDelimited,lengthDelimited_count)
+         process(clk_i)
+            variable delimitStack_idx_var : natural := 0; 
          begin
-            if reset_i = '1' then
-               lengthDelimited <= (others => '0');
-            else
-               if ((state = VARINT_KEY) and (wireType = "010")) then
-                 lengthDelimited(fieldNumber_reg) <= '1';
-               end if;
-               messageValid_o <= '0';
-               for i in 0 to NUM_FIELDS-1 loop
-                  if lengthDelimited(i) = '1' then
-                     if lengthDelimited_count(i) = lengthDelimited_numBytes(i) - 1 then
-                        messageValid_o <= '1';
-                        lengthDelimited(i) <= '0';
-                     end if;
+            if rising_edge(clk_i) then
+              messageValid_o <= '0';
+               if reset_i = '1' then
+                  delimitStack_idx_var := 0;
+               else
+                  delimitStack_idx_var := delimitStack_idx;
+                  
+                  if (state = LENGTH_DELIMITED_DECODE) then
+                     delimitStack_idx_var := delimitStack_idx_var + 1;
+                     delimitCountStack(delimitStack_idx_var) <= to_integer(unsigned(protoStream_i));
                   end if;
-               end loop;
+
+                  if (delimitStack_idx > 0)  then
+                     delimitCountStack(delimitStack_idx) <=
+                        delimitCountStack(delimitStack_idx)-1;
+
+                     if delimitCountStack(delimitStack_idx)-1 = 0 then
+                        messageValid_o <= '1';
+                        delimitStack_idx_var := delimitStack_idx_var - 1;
+                     end if;
+
+                  end if;
+
+                end if;
+
+                delimitStack_idx <= delimitStack_idx_var;
+
              end if;
       end process;
-
-      -- counts the length delimited fields
-      process(lengthDelimited)
-      begin
-         if reset_i = '1' then
-            lengthDelimited_count <= (OTHERS => 0);
-         else
-            for i in 0 to NUM_FIELDS-1 loop
-               if lengthDelimited(i) = '1' then
-                  if lengthDelimited_count(i) = lengthDelimited_numBytes(i) - 1 then
-                     lengthDelimited_count(i) <= 0;
-                  else
-                     lengthDelimited_count(i) <= lengthDelimited_count(i) + 1;
-                  end if;
-               end if;
-            end loop;
-         end if;
-      end process;
-
          -- }}}
       end arch;
       --}}}

@@ -9,7 +9,7 @@ entity protoDeserialize is
    port (
      protoStream_i  :  in std_logic_vector(7 downto 0);
      key_o          :  out std_logic_vector(1 downto 0);
-     data_o         :  out std_logic_vector(7 downto 0);
+     data_o         :  out std_logic_vector(31 downto 0);
      messageValid_o :  out std_logic;
      fieldValid_o   :  out std_logic;
      clk_i          :  in std_logic;
@@ -61,6 +61,7 @@ begin
 
          case state is
             when IDLE =>
+               state <= VARINT_KEY;
 
             when VARINT_KEY => 
                fieldNumber_reg <= to_integer(unsigned(fieldNumber));

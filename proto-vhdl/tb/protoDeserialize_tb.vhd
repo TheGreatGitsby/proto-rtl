@@ -20,7 +20,7 @@ architecture arch of tb_template is
    signal reset          :  std_logic := '0';
    signal protoStream_i  :  std_logic_vector(7 downto 0);
    signal key_o          :  std_logic_vector(1 downto 0);
-   signal data_o         :  std_logic_vector(7 downto 0);
+   signal data_o         :  std_logic_vector(31 downto 0);
    signal messageValid_o :  std_logic;
    signal fieldValid_o   :  std_logic;
    
@@ -50,21 +50,15 @@ clk <= not clk after clk_period/2;
    --! Stimulus process
    --{{{
 stim_proc: process
- --  variable serializedBytes : character;
- --  variable serializedline : line;
 begin
- --  file_open(file_Serialized, "C:\proto-rtl\protobuf\simple.txt",  read_mode);
    wait for 100 ns;
    reset <='1';
    wait for 200 ns;
    reset <='0';
       -- Do something interesting.
- --  while not endfile(file_Serialized) loop
- --  readline(file_Serialized, serializedline);
-      -- read a byte
-      read(serializedline, serializedBytes);
-      protoStream_i <= serializedBytes;
-      --wait for clock cycle
+   wait until rising_edge(clk);
+   for i in 0 to NUM_INPUT_BYTES-1 loop
+      protoStream_i <= input_vec(i);
       wait until rising_edge(clk);
    end loop;
    wait;

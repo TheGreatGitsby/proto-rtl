@@ -3,13 +3,18 @@ use ieee.std_logic_1164.all;
 
 package template_pkg is
 
-   constant NUM_FIELDS : natural := 1;
+   constant NUM_FIELDS : natural := 6;
    constant MAX_STREAM_LENGTH : natural := 255;
-   constant VARINT_NUM_BYTES_MAX : natural := 8;
+   constant VARINT_NUM_BYTES_MAX : natural := 4;
 
    type fieldSize_arr is array (0 to NUM_FIELDS-1) of natural;
    constant fieldSizes : fieldSize_arr := (
-   0 => 32);
+   0 => 32,
+   1 => 32,
+   2 => 32,
+   3 => 32,
+   4 => 32,
+   5 => 32);
 
    type delimitLength_t is array (0 to NUM_FIELDS-1) of natural range 0 to MAX_STREAM_LENGTH;
 

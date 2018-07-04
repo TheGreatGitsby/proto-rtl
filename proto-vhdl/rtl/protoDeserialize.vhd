@@ -9,7 +9,7 @@ entity protoDeserialize is
    port (
      protoStream_i  :  in std_logic_vector(7 downto 0);
      key_o          :  out std_logic_vector(1 downto 0);
-     data_o         :  out std_logic_vector;
+     data_o         :  out std_logic_vector(7 downto 0);
      messageValid_o :  out std_logic;
      fieldValid_o   :  out std_logic;
      clk_i          :  in std_logic;
@@ -28,6 +28,7 @@ signal fieldNumber_reg : natural;
 signal varintCount : natural range 0 to 8;
 signal lengthDelimited : std_logic_vector(NUM_FIELDS-1 downto 0);
 signal lengthDelimited_numBytes : delimitLength_t; 
+signal lengthDelimited_count : delimitLength_t; 
 
 type varint_reg_t is array (0 to VARINT_NUM_BYTES_MAX-1) of std_logic_vector(6 downto 0);
 signal varint_reg : varint_reg_t;
@@ -102,7 +103,7 @@ begin
                end case;
              end if;
          end if;
-         end process
+         end process;
 
          -- This process figures out when to toggle messageValid_o
          -- based on delimited setting
@@ -111,15 +112,15 @@ begin
             if reset_i = '1' then
                lengthDelimited <= (others => '0');
             else
-               if ((state = VARINT_KEY) and (wireType = "010")) 
-                 lengthDelimited(fieldNumber) = '1';
+               if ((state = VARINT_KEY) and (wireType = "010")) then
+                 lengthDelimited(fieldNumber_reg) <= '1';
                end if;
                messageValid_o <= '0';
-               for i in 0 to numFields-1 loop
+               for i in 0 to NUM_FIELDS-1 loop
                   if lengthDelimited(i) = '1' then
                      if lengthDelimited_count(i) = lengthDelimited_numBytes(i) - 1 then
                         messageValid_o <= '1';
-                        lengthDelimited(i) = '0';
+                        lengthDelimited(i) <= '0';
                      end if;
                   end if;
                end loop;
@@ -130,11 +131,11 @@ begin
       process(lengthDelimited)
       begin
          if reset_i = '1' then
-            lengthDelimited_count <= (OTHERS => (OTHERS => '0'));
+            lengthDelimited_count <= (OTHERS => 0);
          else
-            for i in 0 to numFields-1 loop
+            for i in 0 to NUM_FIELDS-1 loop
                if lengthDelimited(i) = '1' then
-                  if lengthDelimited_count = lengthDelimited_numBytes - 1 then
+                  if lengthDelimited_count(i) = lengthDelimited_numBytes(i) - 1 then
                      lengthDelimited_count(i) <= 0;
                   else
                      lengthDelimited_count(i) <= lengthDelimited_count(i) + 1;

@@ -2,6 +2,7 @@ library ieee;
 use ieee.std_logic_1164.all;
 use STD.textio.all;
 use ieee.std_logic_textio.all;
+use work.tb_stimulus_pkg.all;
 
 --! Entity Declaration
 -- {{{
@@ -19,21 +20,25 @@ architecture arch of tb_template is
    signal reset          :  std_logic := '0';
    signal protoStream_i  :  std_logic_vector(7 downto 0);
    signal key_o          :  std_logic_vector(1 downto 0);
-   signal data_o         :  std_logic_vector;
+   signal data_o         :  std_logic_vector(7 downto 0);
    signal messageValid_o :  std_logic;
    signal fieldValid_o   :  std_logic;
+   
+   file file_Serialized : text;
 -- }}}
 begin
 
 --! @brief DUT Port Map
 -- {{{
-protoDeserialize: entity work.protoDeserialize
+protoDeserialize_inst: entity work.protoDeserialize
    port map (
      protoStream_i     => protoStream_i,  -- std_logic_vector(7 downto 0);
      key_o             => key_o,          -- std_logic_vector(1 downto 0);
      data_o            => data_o,         -- std_logic_vector;
      messageValid_o    => messageValid_o, -- std_logic;
-     fieldValid_o      => fieldValid_o   -- std_logic
+     fieldValid_o      => fieldValid_o,   -- std_logic
+     clk_i             => clk,
+     reset_i           => reset
 );
    -- }}}
 
@@ -45,17 +50,17 @@ clk <= not clk after clk_period/2;
    --! Stimulus process
    --{{{
 stim_proc: process
-   variable serializedBytes : std_logic_vector(7 downto 0);
-   variable serializedline : line;
+ --  variable serializedBytes : character;
+ --  variable serializedline : line;
 begin
-   file_open(file_Serialized, "simpleMessage",  read_mode);
+ --  file_open(file_Serialized, "C:\proto-rtl\protobuf\simple.txt",  read_mode);
    wait for 100 ns;
    reset <='1';
    wait for 200 ns;
    reset <='0';
       -- Do something interesting.
-   readline(file_Serialized, serializedline);
-   while not endfile(file_Serialized) loop
+ --  while not endfile(file_Serialized) loop
+ --  readline(file_Serialized, serializedline);
       -- read a byte
       read(serializedline, serializedBytes);
       protoStream_i <= serializedBytes;
@@ -65,6 +70,7 @@ begin
    wait;
 end process;
 --}}}
+
 
 end arch;
 --}}}

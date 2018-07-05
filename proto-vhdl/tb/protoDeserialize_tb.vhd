@@ -19,7 +19,7 @@ architecture arch of tb_template is
    signal clk            :  std_logic := '0';
    signal reset          :  std_logic := '0';
    signal protoStream_i  :  std_logic_vector(7 downto 0);
-   signal key_o          :  std_logic_vector(1 downto 0);
+   signal unique_id_o    :  std_logic_vector(31 downto 0);
    signal data_o         :  std_logic_vector(31 downto 0);
    signal messageValid_o :  std_logic;
    signal fieldValid_o   :  std_logic;
@@ -33,7 +33,7 @@ begin
 protoDeserialize_inst: entity work.protoDeserialize
    port map (
      protoStream_i     => protoStream_i,  -- std_logic_vector(7 downto 0);
-     key_o             => key_o,          -- std_logic_vector(1 downto 0);
+     unique_id_o       => unique_id_o,          -- std_logic_vector(1 downto 0);
      data_o            => data_o,         -- std_logic_vector;
      messageValid_o    => messageValid_o, -- std_logic;
      fieldValid_o      => fieldValid_o,   -- std_logic

@@ -16,6 +16,7 @@ package template_pkg is
    4 => 32,
    5 => 32);
 
+
    -- delimit counter stack size
    constant MAX_EMBEDDED_DELIMITS : natural := 5;
 
@@ -38,12 +39,17 @@ package template_pkg is
 
    -- Create new unique IDs for all fields
    constant NUM_MSG_HIERARCHY : natural := 3;
-   constant MAX_IDENTIFIER_NUM_BITS : natural := 3;
-   constant MAX_ARRAY_IDX_BITS : natural := NUM_MSG_HIERARCHY * MAX_IDENTIFIER_NUM_BITS; 
+   constant FIELD_NUM_BITS : natural := 5;
+   constant MAX_ARRAY_IDX_BITS : natural := NUM_MSG_HIERARCHY * FIELD_NUM_BITS; 
+
+   -- used in synthesis code for building the LUT address
+   type EmbeddedMsgArrIdx is array (0 to NUM_MSG_HIERARCHY-1-1) of
+      std_logic_vector(FIELD_NUM_BITS-1 downto 0);
+      
 
    -- Embedded message handling
-   constant MSG_X_MULTIPLIER : natural := 2 * MAX_IDENTIFIER_NUM_BITS;
-   constant MSG_X_Y_MULTIPLIER : natural := 2 * (2 * MAX_IDENTIFIER_NUM_BITS);
+   constant MSG_X_MULTIPLIER : natural := 2 ** FIELD_NUM_BITS;
+   constant MSG_X_Y_MULTIPLIER : natural := 2 ** (2 * FIELD_NUM_BITS);
    constant MSG_1   :  natural := 1 * MSG_X_MULTIPLIER;
    constant MSG_1_1   :  natural := 4 * MSG_X_Y_MULTIPLIER;
 
@@ -52,15 +58,27 @@ package template_pkg is
       -- MSG_x_y & MSG_x & PROTO_ID => UNIQUE_NUM
       -- CONCATED_PROTOBUF_ID => UNIQUE_NUM,
       -- to generate, loop through all fields build array address based on msg containers
-      MSG_1 + 1   => 0,
-      MSG_1 + 2  => 1,
-      MSG_1 + 3   => 2,
-      MSG_1 + MSG_1_1 + 1  => 3,
-      MSG_1 + MSG_1_1 + 2  => 4,
+      1     => 0, -- this is the top level embedded message
+      MSG_1 + 1   => 1,
+      MSG_1 + 2  => 2,
+      MSG_1 + 3   => 3,
+      MSG_1 + MSG_1_1 + 1  => 4,
+      MSG_1 + MSG_1_1 + 2  => 5,
       OTHERS => 0);
 
 type Fields is (PERSON_NAME, PERSON_ID, PERSON_EMAIL,
    PERSON_PHONENUMBER_NUMBER, PERSON_PHONENUMBER_TYPE);
+
+type varTypes is (EMBEDDED_MESSAGE, VARINT, STRING_t, INT32, CUSTOM_t);
+type varTypeLut_arr is array (0 to NUM_FIELDS-1) of varTypes;
+
+constant VAR_TYPE_LUT : varTypeLut_arr := (
+0 => EMBEDDED_MESSAGE,
+1 => STRING_t,
+2 => INT32,
+3 => STRING_t,
+4 => STRING_t,
+5 => CUSTOM_t);   --enum
 
    
 

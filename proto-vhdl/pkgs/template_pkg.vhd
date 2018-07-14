@@ -60,7 +60,7 @@ package template_pkg is
 
    type msg_identifier_arr_t is array (0 to 2**(MAX_ARRAY_IDX_BITS)-1) of natural range 0 to NUM_FIELDS-1;
    constant UNIQUE_ID_LUT : msg_identifier_arr_t := (
-      -- MSG_x & MSG_x_y & PROTO_ID => UNIQUE_NUM
+      -- MSG_x_y & MSG_x & PROTO_ID => UNIQUE_NUM
       -- to generate, loop through all fields build array address based on msg containers
       1     => 0, -- this is the top level embedded message
       MSG_1 + 1   => 1,

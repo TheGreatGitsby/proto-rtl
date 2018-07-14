@@ -28,17 +28,15 @@ signal fieldNumber           :  std_logic_vector(4 downto 0);
 signal fieldNumber_reg       :  std_logic_vector(4 downto 0);
 signal varintCount           :  natural range 0 to 8;
 signal delimitCountStack     :  delimitLength_t;
-signal delimitStack_idx      :  natural range 0 to MAX_EMBEDDED_DELIMITS;
-signal lengthDelimited_count :  delimitLength_t;
+signal delimitCount          : natural range 0 to 255;
 
 signal varint_reg : varint_reg_t;
 
 -- These signals are to build the UNIQUE_ID_LUT address
-signal embeddedMsgIdentifier : EmbeddedMsgArrIdx := (OTHERS => (OTHERS => '0'));
-signal embeddedMsgIdentifierPtr : natural := 0;
-signal embeddedMsgIdentifierAddress : std_logic_vector(MAX_ARRAY_IDX_BITS - 1 downto 0) := (OTHERS => '0');
+signal numActiveMsgs : natural := 0;
+signal uniqueIdLutAddress : std_logic_vector(MAX_ARRAY_IDX_BITS - 1 downto 0) := (OTHERS => '0');
 signal FieldUniqueId : natural range 0 to NUM_FIELDS-1;
-signal VariableTypeLUT : varTypes;
+signal FieldUniqueIdType : varTypes;
 
 type state_t is (IDLE, KEY_DECODE, VARINT_DECODE, LENGTH_DELIMITED_DECODE, DECODE_UNTIL_DELIMIT); 
 signal  state : state_t := IDLE;
@@ -55,27 +53,25 @@ begin
    wireType <= wiretype_t'VAL(to_integer(unsigned(protostream_i(2 downto 0))));
    fieldNumber <= protostream_i(7 downto 3);
 
-   --Always generate the current UNIQUE_ID_LUT Address
-   --  which is the embedded message types concatenated with the current field ID
-   process(embeddedMsgIdentifier, fieldNumber_reg)
-   begin
-     for i in 1 to NUM_MSG_HIERARCHY-1 loop
-        embeddedMsgIdentifierAddress(((i * FIELD_NUM_BITS) + FIELD_NUM_BITS - 1) 
-          downto (i * FIELD_NUM_BITS)) <= embeddedMsgIdentifier(i-1); 
-     end loop;
-     embeddedMsgIdentifierAddress(FIELD_NUM_BITS-1 downto 0) <= fieldNumber_reg;
-   end process;
 
-   FieldUniqueId   <= UNIQUE_ID_LUT(to_integer(unsigned(embeddedMsgIdentifierAddress)));
-   VariableTypeLUT <= UNIQUE_ID_TYPE_LUT(FieldUniqueId);
+
+   -- Always holds the current Unique ID of the field being processed.
+   FieldUniqueId <= UNIQUE_ID_LUT(to_integer(unsigned(
+                    uniqueIdLutAddress(
+                    (numActiveMsgs * FIELD_NUM_BITS) + FIELD_NUM_BITS - 1 downto 0))));
+   -- Always holds the current Unique ID type of the field being processed.
+   FieldUniqueIdType <= UNIQUE_ID_TYPE_LUT(FieldUniqueId);
        
-   process(clk_i)
+   process(clk_i, fieldNumber)
    variable fieldNumber_var : unsigned(4 downto 0);
    begin
-      
-      -- asynchronous default case
-     -- data_o <= (OTHERS => '0');
-     -- data_o(7 downto 0) <= protoStream_i;
+
+     --asychronous defaults
+      -- This section (LSB) of the uniqueIdLutAddress is always the current
+      -- fieldNumber.  The MSB portions of this address are registered as
+      -- embedded messages are received.
+      uniqueIdLutAddress(FIELD_NUM_BITS-1 downto 0) <= fieldNumber_reg;
+
 
       if rising_edge(clk_i) then
       --defaults
@@ -84,6 +80,8 @@ begin
             state <= IDLE;
             varint_reg   <= (OTHERS => (OTHERS => '0'));
             varintCount <= 0;
+            fieldNumber_reg <= (OTHERS => '0');
+            delimitCount <= 0;
          else
 
          case state is
@@ -92,13 +90,6 @@ begin
 
             when KEY_DECODE => 
                fieldNumber_reg <= fieldNumber;
-               -- get parameter type and see if it's
-               -- repeated based on fieldNumber
-               --isRepeated(fieldNumber_var) <= something;
-
-               -- get parameter type and see if its
-               -- packed based on fieldNumber
-               --isPacked(fieldNumber_var) <= something;
 
                case wireType is
                   when VARINT => 
@@ -116,11 +107,17 @@ begin
                -- here we need to decide if this is a length-delimited
                -- type such as a string or repeated value.  OR if 
                -- this is a message.
-               case VariableTypeLUT is
+               case FieldUniqueIdType is
                   when EMBEDDED_MESSAGE =>
-                     embeddedMsgIdentifier(embeddedMsgIdentifierPtr) <= fieldNumber_reg;
+                     -- Put the current fieldnumber, which is an ID for an embedded msg
+                     -- as part of the uniqueIdLutAddress reg. There is an additional 
+                     -- FIELD_NUM_BITS offset since the LSB of the address is always 
+                     -- the current field being processed going forward.
+                     uniqueIdLutAddress(((numActiveMsgs * FIELD_NUM_BITS) + FIELD_NUM_BITS) + FIELD_NUM_BITS - 1 downto (numActiveMsgs * FIELD_NUM_BITS) + FIELD_NUM_BITS) <= fieldNumber_reg; 
+
                      state <= KEY_DECODE;
                   when STRING_t =>
+                     delimitCount <= to_integer(unsigned(protoStream_i));
                      state <= DECODE_UNTIL_DELIMIT;
                   when OTHERS =>
                      -- more cases to come...
@@ -137,7 +134,8 @@ begin
                end if;
 
             when DECODE_UNTIL_DELIMIT =>
-               if delimitCountStack(delimitStack_idx)-1 = 0 then
+                  delimitCount <= delimitCount - 1;
+               if delimitCount = 1 then
                   state <= KEY_DECODE; 
                end if;
             end case;
@@ -152,7 +150,7 @@ begin
            --default case
            data_o       <= (OTHERS => '0');
            fieldValid_o <= '0';
-           unique_id_o  <= (OTHERS => '0');
+           unique_id_o <= std_logic_vector(to_unsigned(FieldUniqueId, 32)); 
 
            case state is
 
@@ -171,7 +169,6 @@ begin
             when DECODE_UNTIL_DELIMIT =>
                fieldValid_o <= '1';
                data_o(7 downto 0) <= protostream_i;
-               unique_id_o <= std_logic_vector(to_unsigned(FieldUniqueId, 32)); 
 
             when OTHERS => 
                --do nothing
@@ -180,45 +177,40 @@ begin
 
          end process;
 
-         -- This process figures out when to toggle messageValid_o
-         -- based on delimited setting
+         -- This process keeps track of embedded msgs and determines when
+         -- to toggle messageValid_o
+
          process(clk_i)
-            variable delimitStack_idx_var : natural := 0; 
          begin
             if rising_edge(clk_i) then
+
               messageValid_o <= '0';
+
                if reset_i = '1' then
-                  delimitStack_idx_var := 0;
-               else
-                  delimitStack_idx_var := delimitStack_idx;
-                  
+                 numActiveMsgs <= 0;
+               else            
                   if (state = LENGTH_DELIMITED_DECODE) then
-                     delimitStack_idx_var := delimitStack_idx_var + 1;
-                     delimitCountStack(delimitStack_idx_var) <= to_integer(unsigned(protoStream_i));
-                     if VariableTypeLUT = EMBEDDED_MESSAGE then
-                       embeddedMsgIdentifierPtr <= embeddedMsgIdentifierPtr + 1;
+                     if FieldUniqueIdType = EMBEDDED_MESSAGE then
+                       numActiveMsgs <= numActiveMsgs + 1;
+                       delimitCountStack(numActiveMsgs) <= to_integer(unsigned(protoStream_i));
                      end if;
                   end if;
 
-                  for i in 0 to MAX_EMBEDDED_DELIMITS-1 loop
-                  if (delimitStack_idx >= i)  and (delimitCountStack(i) > 0) then
-                     delimitCountStack(i) <=
-                        delimitCountStack(i)-1;
-                  end if;
-               end loop;
+                  for i in 0 to NUM_MSG_HIERARCHY-1 loop
+                     if (numActiveMsgs > i) then
+                        delimitCountStack(i) <=
+                           delimitCountStack(i)-1;
+                     end if;
+                  end loop;
 
-                     if (delimitCountStack(delimitStack_idx) = 1) and (delimitStack_idx > 0) then
---                        if (VariableTypeLUT = EMBEDDED_MESSAGE) then
-                        if (VariableTypeLUT = EMBEDDED_MESSAGE) then
+                     if (numActiveMsgs > 0) then
+                        if (delimitCountStack(numActiveMsgs-1) = 1) then
                            messageValid_o <= '1';
-                           embeddedMsgIdentifierPtr <= embeddedMsgIdentifierPtr - 1;
+                           numActiveMsgs <= numActiveMsgs - 1;
                         end if;
-                        delimitStack_idx_var := delimitStack_idx_var - 1;
                      end if;
 
                 end if;
-
-                delimitStack_idx <= delimitStack_idx_var;
 
              end if;
       end process;

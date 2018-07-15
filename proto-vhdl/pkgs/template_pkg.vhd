@@ -12,7 +12,7 @@ package template_pkg is
    constant NUM_FIELDS : natural := 7;
    constant MAX_STREAM_LENGTH : natural := 255;
    constant MAX_FIELD_BYTE_WIDTH : natural := 4;
-   constant VARINT_NUM_BYTES_MAX : natural := natural(ceil(real(MAX_FIELD_BYTE_WIDTH*8)/7));
+   constant VARINT_NUM_BYTES_MAX : natural := natural(ceil(real(real(MAX_FIELD_BYTE_WIDTH*8)/real(7))));
    type varint_reg_t is array (0 to VARINT_NUM_BYTES_MAX-2) of std_logic_vector(6 downto 0);
 
    type fieldSize_arr is array (0 to NUM_FIELDS-1) of natural;

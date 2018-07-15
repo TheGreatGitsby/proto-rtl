@@ -38,6 +38,8 @@ signal uniqueIdLutAddress : std_logic_vector(MAX_ARRAY_IDX_BITS - 1 downto 0) :=
 signal FieldUniqueId : natural range 0 to NUM_FIELDS-1;
 signal FieldUniqueIdType : varTypes;
 
+signal probe : natural;
+
 type state_t is (IDLE, KEY_DECODE, VARINT_DECODE, LENGTH_DELIMITED_DECODE, DECODE_UNTIL_DELIMIT); 
 signal  state : state_t := IDLE;
 -- }}}
@@ -48,6 +50,7 @@ begin
    -- }}}
    --! @brief RTL
    -- {{{
+   probe <= VARINT_NUM_BYTES_MAX;
    
    --wireType <= protostream_i(2 downto 0);
    wireType <= wiretype_t'VAL(to_integer(unsigned(protostream_i(2 downto 0))));
@@ -125,12 +128,14 @@ begin
                end case;
 
             when VARINT_DECODE =>
-               varintCount <= varintCount + 1;
-               varint_reg(varintCount) <= protostream_i(6 downto 0);
                if (protostream_i(7) = '0') then
                   -- end of decode
                   varint_reg   <= (OTHERS => (OTHERS => '0'));
                   state        <= KEY_DECODE;
+                  varintCount <=  0;
+               else
+                  varintCount <= varintCount + 1;
+                  varint_reg(varintCount) <= protostream_i(6 downto 0);
                end if;
 
             when DECODE_UNTIL_DELIMIT =>
@@ -157,12 +162,18 @@ begin
             when VARINT_DECODE =>
                if (protostream_i(7) = '0') then
                   -- end of decode
-                  for i in 0 to VARINT_NUM_BYTES_MAX-1 loop
+                  for i in 0 to VARINT_NUM_BYTES_MAX-2 loop
                      data_o((i*7)+6 downto (i*7)) <= varint_reg(i);
                   end loop;
 
+                  if varintCount >= MAX_FIELD_BYTE_WIDTH then
+                     data_o((MAX_FIELD_BYTE_WIDTH * 8) - 1 downto (varintCount * 7)) <= 
+                       protostream_i((MAX_FIELD_BYTE_WIDTH * 8) - 1 - (varintCount * 7)  downto 0);
+                  else
                   -- Set the input to be the current index of the VARINT
-                  data_o(((VarintCount * 7) + 6) downto (VarintCount * 7)) <= protostream_i(6 downto 0);
+                     data_o(((varintCount * 7) + 6) downto (varintCount * 7)) <= protostream_i(6 downto 0);
+                  end if;
+
                   fieldValid_o <= '1';
                end if;
 
@@ -192,7 +203,7 @@ begin
                   if (state = LENGTH_DELIMITED_DECODE) then
                      if FieldUniqueIdType = EMBEDDED_MESSAGE then
                        numActiveMsgs <= numActiveMsgs + 1;
-                       delimitCountStack(numActiveMsgs) <= to_integer(unsigned(protoStream_i));
+                       delimitCountStack(numActiveMsgs) <= to_integer(unsigned(protoStream_i))-1;
                      end if;
                   end if;
 

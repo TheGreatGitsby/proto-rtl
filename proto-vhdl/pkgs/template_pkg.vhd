@@ -1,5 +1,7 @@
 library ieee;
 use ieee.std_logic_1164.all;
+use ieee.math_real.all;
+ 
 
 package template_pkg is
 
@@ -9,8 +11,9 @@ package template_pkg is
 
    constant NUM_FIELDS : natural := 6;
    constant MAX_STREAM_LENGTH : natural := 255;
-   constant VARINT_NUM_BYTES_MAX : natural := 4;
-   type varint_reg_t is array (0 to VARINT_NUM_BYTES_MAX-1) of std_logic_vector(6 downto 0);
+   constant MAX_FIELD_BYTE_WIDTH : natural := 4;
+   constant VARINT_NUM_BYTES_MAX : natural := natural(ceil(real(MAX_FIELD_BYTE_WIDTH*8)/7));
+   type varint_reg_t is array (0 to VARINT_NUM_BYTES_MAX-2) of std_logic_vector(6 downto 0);
 
    type fieldSize_arr is array (0 to NUM_FIELDS-1) of natural;
    constant fieldSizes : fieldSize_arr := (

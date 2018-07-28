@@ -2,7 +2,6 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.math_real.all;
  
-
 package template_pkg is
 
    --protobuf non-specific types
@@ -35,16 +34,22 @@ package template_pkg is
    type phoneType is (MOBILE, HOME, WORK);
 
    type Person_phoneNumber is record
-      number : std_logic_vector(31 downto 0);
       phone_type : phoneType;
    end record Person_phoneNumber;
 
+   --Person_phoneNumber delimited types
+   type number_t is std_logic_vector(7 downto 0);
+
+   -- Person Message
    type Person is record
-      name : std_logic_vector(7 downto 0);
-      id   : std_logic_vector(7 downto 0);
-      email : std_logic_vector(31 downto 0);
+      id     : std_logic_vector(31 downto 0);
    end record Person;
-   
+
+   --Person Delimted types
+   type name_t is std_logic_vector(7 downto 0);
+   type email_t is std_logic_vector(7 downto 0);
+
+   --Address Book Message
 
    -- Create new unique IDs for all fields
    constant NUM_MSG_HIERARCHY : natural := 3;

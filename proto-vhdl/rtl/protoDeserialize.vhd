@@ -12,6 +12,7 @@ entity protoDeserialize is
      data_o         :  out std_logic_vector(31 downto 0);
      messageValid_o :  out std_logic;
      fieldValid_o   :  out std_logic;
+     delimit_last_o :  out std_logic;
      clk_i          :  in std_logic;
      reset_i        :  in std_logic
 );
@@ -80,7 +81,7 @@ begin
    -- Always holds the current Unique ID type of the field being processed.
    FieldUniqueIdType <= UNIQUE_ID_TYPE_LUT(FieldUniqueId);
        
-   process(clk_i, fieldNumber)
+   process(clk_i, fieldNumber_reg)
    variable fieldNumber_var : unsigned(4 downto 0);
    begin
 
@@ -165,12 +166,13 @@ begin
 
          -- This is an asynchrnous process to control the output
          -- data stream
-         process(protostream_i, state)
+         process(protostream_i, state, FieldUniqueId, varint_reg, varintCount)
          begin
            --default case
            data_o       <= (OTHERS => '0');
            fieldValid_o <= '0';
            unique_id_o <= std_logic_vector(to_unsigned(FieldUniqueId, 32)); 
+           delimit_last_o <= '0';
 
            case state is
 
@@ -195,6 +197,9 @@ begin
             when DECODE_UNTIL_DELIMIT =>
                fieldValid_o <= '1';
                data_o(7 downto 0) <= protostream_i;
+               if delimitCount = 1 then
+                  delimit_last_o <= '1';
+               end if;
 
             when OTHERS => 
                --do nothing

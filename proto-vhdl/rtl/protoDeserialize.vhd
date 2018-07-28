@@ -33,10 +33,11 @@ signal delimitCount          : natural range 0 to 255;
 signal varint_reg : varint_reg_t;
 
 -- These signals are to build the UNIQUE_ID_LUT address
-signal numActiveMsgs : natural := 0;
-signal uniqueIdLutAddress : std_logic_vector(MAX_ARRAY_IDX_BITS - 1 downto 0) := (OTHERS => '0');
-signal FieldUniqueId : natural range 0 to NUM_FIELDS-1;
-signal FieldUniqueIdType : varTypes;
+signal numActiveMsgs          :  natural := 0;
+signal uniqueIdLutAddress     :  std_logic_vector(MAX_ARRAY_IDX_BITS - 1 downto 0) := (OTHERS => '0');
+signal uniqueIdLutAddressMask :  std_logic_vector(MAX_ARRAY_IDX_BITS - 1 downto 0) := (OTHERS => '0');
+signal FieldUniqueId          :  natural range 0 to NUM_FIELDS-1;
+signal FieldUniqueIdType      :  varTypes;
 
 signal probe : natural;
 
@@ -58,10 +59,24 @@ begin
 
 
 
+
+   -- Mask off the upper bits of the unique ID Lut if the bits
+   -- are not used (ie not enough active embedded msgs to make
+   -- this part of the address possible)
+   process(numActiveMsgs)
+   begin
+      for i in 0 to MAX_ARRAY_IDX_BITS-1 loop
+         if (i >= ((numActiveMsgs * FIELD_NUM_BITS) + FIELD_NUM_BITS)) then
+            uniqueIdLutAddressMask(i) <= '0'; 
+         else
+            uniqueIdLutAddressMask(i) <= '1'; 
+         end if;
+      end loop;
+   end process;
+
    -- Always holds the current Unique ID of the field being processed.
    FieldUniqueId <= UNIQUE_ID_LUT(to_integer(unsigned(
-                    uniqueIdLutAddress(
-                    (numActiveMsgs * FIELD_NUM_BITS) + FIELD_NUM_BITS - 1 downto 0))));
+                    uniqueIdLutAddress and uniqueIdLutAddressMask)));
    -- Always holds the current Unique ID type of the field being processed.
    FieldUniqueIdType <= UNIQUE_ID_TYPE_LUT(FieldUniqueId);
        

@@ -22,7 +22,7 @@ architecture arch of tb_template is
    signal fieldUniqueId_o   :  std_logic_vector(31 downto 0);
    signal messageUniqueId_o :  std_logic_vector(31 downto 0);
    signal data_o            :  std_logic_vector(31 downto 0);
-   signal messageValid_o    :  std_logic;
+   signal messageLast_o    :  std_logic;
    signal fieldValid_o      :  std_logic;
    signal delimit_last_o    :  std_logic;
    
@@ -38,7 +38,7 @@ protoDeserialize_inst: entity work.protoDeserialize
      fieldUniqueId_o   => fieldUniqueId_o,          -- std_logic_vector(1 downto 0);
      messageUniqueId_o => messageUniqueId_o,
      data_o            => data_o,         -- std_logic_vector;
-     messageValid_o    => messageValid_o, -- std_logic;
+     messageLast_o     => messageLast_o, -- std_logic;
      delimit_last_o    => delimit_last_o,
      fieldValid_o      => fieldValid_o,   -- std_logic
      clk_i             => clk,

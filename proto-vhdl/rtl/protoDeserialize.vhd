@@ -7,15 +7,15 @@ use work.template_pkg.all;
 -- {{{
 entity protoDeserialize is
    port (
-     protoStream_i  :  in std_logic_vector(7 downto 0);
-     fieldUniqueId_o    :  out std_logic_vector(31 downto 0);
-     messageUniqueId_o  : out std_logic_vector(31 downto 0);
-     data_o         :  out std_logic_vector(31 downto 0);
-     messageValid_o :  out std_logic;
-     fieldValid_o   :  out std_logic;
-     delimit_last_o :  out std_logic;
-     clk_i          :  in std_logic;
-     reset_i        :  in std_logic
+     protoStream_i     : in std_logic_vector(7 downto 0);
+     fieldUniqueId_o   : out std_logic_vector(31 downto 0);
+     messageUniqueId_o : out std_logic_vector(31 downto 0);
+     data_o            : out std_logic_vector(31 downto 0);
+     messageLast_o     : out std_logic;
+     fieldValid_o      : out std_logic;
+     delimit_last_o    : out std_logic;
+     clk_i             : in std_logic;
+     reset_i           : in std_logic
 );
 end protoDeserialize;
 -- }}}
@@ -211,7 +211,7 @@ begin
          end process;
 
          -- This process keeps track of embedded msgs and determines when
-         -- to toggle messageValid_o
+         -- to toggle messageLast_o
 
          process(clk_i)
             variable messageEndCount : natural range 0 to NUM_MSG_HIERARCHY-1;
@@ -219,9 +219,13 @@ begin
          begin
             if rising_edge(clk_i) then
 
-              messageValid_o <= '0';
+              messageLast_o <= '0';
               messageStartCount := 0;
               messageEndCount := 0;
+              messageUniqueId_o <= (others => '0');
+              if numActiveMsgs > 0 then
+                messageUniqueId_o <= std_logic_vector(to_unsigned(delimitUniqueIdStack(numActiveMsgs-1),32));
+             end if;
 
                if reset_i = '1' then
                  numActiveMsgs <= 0;
@@ -243,7 +247,7 @@ begin
                         -- most message takes priority with reference to 
                         -- messageUniqueId_o
                         if (delimitCountStack(i) = 1) then
-                           messageValid_o    <= '1';
+                           messageLast_o    <= '1';
                            messageUniqueId_o <= std_logic_vector(to_unsigned(delimitUniqueIdStack(i),32));
                            messageEndCount := messageEndCount + 1;
                         end if;

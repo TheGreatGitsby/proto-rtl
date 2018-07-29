@@ -214,36 +214,43 @@ begin
          -- to toggle messageValid_o
 
          process(clk_i)
+            variable messageEndCount : natural range 0 to NUM_MSG_HIERARCHY-1;
+            variable messageStartCount : natural range 0 to 1;
          begin
             if rising_edge(clk_i) then
 
               messageValid_o <= '0';
+              messageStartCount := 0;
+              messageEndCount := 0;
 
                if reset_i = '1' then
                  numActiveMsgs <= 0;
                else            
                   if (state = LENGTH_DELIMITED_DECODE) then
                      if FieldUniqueIdType = EMBEDDED_MESSAGE then
-                       numActiveMsgs <= numActiveMsgs + 1;
+                       messageStartCount := 1;
                        delimitCountStack(numActiveMsgs) <= to_integer(unsigned(protoStream_i))-1;
                        delimitUniqueIdStack(numActiveMsgs) <= FieldUniqueId;
                      end if;
                   end if;
 
-                  for i in 0 to NUM_MSG_HIERARCHY-1 loop
+                  for i in NUM_MSG_HIERARCHY-1 downto 0 loop
                      if (numActiveMsgs > i) then
                         delimitCountStack(i) <=
                            delimitCountStack(i)-1;
+                        -- the end of a message. If there are multiple
+                        -- messages ending at the same time, the outer
+                        -- most message takes priority with reference to 
+                        -- messageUniqueId_o
+                        if (delimitCountStack(i) = 1) then
+                           messageValid_o    <= '1';
+                           messageUniqueId_o <= std_logic_vector(to_unsigned(delimitUniqueIdStack(i),32));
+                           messageEndCount := messageEndCount + 1;
+                        end if;
                      end if;
                   end loop;
 
-                     if (numActiveMsgs > 0) then
-                        if (delimitCountStack(numActiveMsgs-1) = 1) then
-                           messageValid_o <= '1';
-                           messageUniqueId_o <= std_logic_vector(to_unsigned(delimitUniqueIdStack(numActiveMsgs-1),32));
-                           numActiveMsgs <= numActiveMsgs - 1;
-                        end if;
-                     end if;
+                  numActiveMsgs <= numActiveMsgs + messageStartCount - messageEndCount;
 
                 end if;
 

@@ -8,7 +8,7 @@ package template_pkg is
    type wiretype_t is (VARINT, SIXTYFOURBIT, LENGTH_DELIMITED, START_GROUP,
                        END_GROUP, THIRTYTWOBIT);
 
-   constant NUM_FIELDS : natural := 7;
+   constant NUM_FIELDS : natural := 8;
    constant MAX_STREAM_LENGTH : natural := 255;
    constant MAX_FIELD_BYTE_WIDTH : natural := 4;
    constant VARINT_NUM_BYTES_MAX : natural := natural(ceil(real(real(MAX_FIELD_BYTE_WIDTH*8)/real(7))));
@@ -22,13 +22,16 @@ package template_pkg is
    3 => 32,
    4 => 32,
    5 => 32,
-   6 => 32);
+   6 => 32,
+   7 => 32);
 
 
    -- delimit counter stack size
    constant MAX_EMBEDDED_DELIMITS : natural := 5;
 
    type delimitLength_t is array (0 to MAX_EMBEDDED_DELIMITS) of natural range 0 to MAX_STREAM_LENGTH;
+
+   type delimitUniqueId_t is array (0 to MAX_EMBEDDED_DELIMITS) of natural range 0 to NUM_FIELDS-1;
 
    -- Person Subtypes
    type phoneType is (MOBILE, HOME, WORK);
@@ -38,7 +41,7 @@ package template_pkg is
    end record Person_phoneNumber;
 
    --Person_phoneNumber delimited types
-   type number_t is std_logic_vector(7 downto 0);
+   subtype number_t is std_logic_vector(7 downto 0);
 
    -- Person Message
    type Person is record
@@ -46,8 +49,8 @@ package template_pkg is
    end record Person;
 
    --Person Delimted types
-   type name_t is std_logic_vector(7 downto 0);
-   type email_t is std_logic_vector(7 downto 0);
+   subtype name_t is std_logic_vector(7 downto 0);
+   subtype email_t is std_logic_vector(7 downto 0);
 
    --Address Book Message
 
@@ -75,9 +78,10 @@ package template_pkg is
       MSG_1 + 1   => 1,
       MSG_1 + 2  => 2,
       MSG_1 + 3   => 3,
-      MSG_1 + MSG_1_1 + 1  => 4,
-      MSG_1 + MSG_1_1 + 2  => 5,
-      MSG_1 + 5   => 6, -- the timestamp message
+      MSG_1 + 4   => 4,
+      MSG_1 + MSG_1_1 + 1  => 5,
+      MSG_1 + MSG_1_1 + 2  => 6,
+      MSG_1 + 5   => 7, -- the timestamp message
       OTHERS => 0);
 
 type Fields is (PERSON_NAME, PERSON_ID, PERSON_EMAIL,
@@ -91,9 +95,10 @@ constant UNIQUE_ID_TYPE_LUT : varTypeLut_arr := (
 1 => STRING_t,
 2 => INT32,
 3 => STRING_t,
-4 => STRING_t,
-5 => CUSTOM_t,   --enum
-6 => EMBEDDED_MESSAGE); -- the timestamp message
+4 => EMBEDDED_MESSAGE,
+5 => STRING_t,
+6 => CUSTOM_t,   --enum
+7 => EMBEDDED_MESSAGE); -- the timestamp message
 
    
 

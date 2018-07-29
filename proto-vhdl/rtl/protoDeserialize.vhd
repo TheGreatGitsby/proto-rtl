@@ -8,7 +8,8 @@ use work.template_pkg.all;
 entity protoDeserialize is
    port (
      protoStream_i  :  in std_logic_vector(7 downto 0);
-     unique_id_o    :  out std_logic_vector(31 downto 0);
+     fieldUniqueId_o    :  out std_logic_vector(31 downto 0);
+     messageUniqueId_o  : out std_logic_vector(31 downto 0);
      data_o         :  out std_logic_vector(31 downto 0);
      messageValid_o :  out std_logic;
      fieldValid_o   :  out std_logic;
@@ -29,6 +30,7 @@ signal fieldNumber           :  std_logic_vector(4 downto 0);
 signal fieldNumber_reg       :  std_logic_vector(4 downto 0);
 signal varintCount           :  natural range 0 to 8;
 signal delimitCountStack     :  delimitLength_t;
+signal delimitUniqueIdStack  :  delimitUniqueId_t;
 signal delimitCount          : natural range 0 to 255;
 
 signal varint_reg : varint_reg_t;
@@ -171,7 +173,7 @@ begin
            --default case
            data_o       <= (OTHERS => '0');
            fieldValid_o <= '0';
-           unique_id_o <= std_logic_vector(to_unsigned(FieldUniqueId, 32)); 
+           fieldUniqueId_o <= std_logic_vector(to_unsigned(FieldUniqueId, 32)); 
            delimit_last_o <= '0';
 
            case state is
@@ -224,6 +226,7 @@ begin
                      if FieldUniqueIdType = EMBEDDED_MESSAGE then
                        numActiveMsgs <= numActiveMsgs + 1;
                        delimitCountStack(numActiveMsgs) <= to_integer(unsigned(protoStream_i))-1;
+                       delimitUniqueIdStack(numActiveMsgs) <= FieldUniqueId;
                      end if;
                   end if;
 
@@ -237,6 +240,7 @@ begin
                      if (numActiveMsgs > 0) then
                         if (delimitCountStack(numActiveMsgs-1) = 1) then
                            messageValid_o <= '1';
+                           messageUniqueId_o <= std_logic_vector(to_unsigned(delimitUniqueIdStack(numActiveMsgs-1),32));
                            numActiveMsgs <= numActiveMsgs - 1;
                         end if;
                      end if;

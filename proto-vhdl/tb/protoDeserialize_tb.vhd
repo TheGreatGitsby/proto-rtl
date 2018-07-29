@@ -15,15 +15,16 @@ entity tb_template is
 architecture arch of tb_template is 
    --! @brief Signal Declarations                                                                            
    -- {{{  
-   constant clk_period   :  time := 100 ns;
-   signal clk            :  std_logic := '0';
-   signal reset          :  std_logic := '0';
-   signal protoStream_i  :  std_logic_vector(7 downto 0);
-   signal unique_id_o    :  std_logic_vector(31 downto 0);
-   signal data_o         :  std_logic_vector(31 downto 0);
-   signal messageValid_o :  std_logic;
-   signal fieldValid_o   :  std_logic;
-   signal delimit_last_o :  std_logic;
+   constant clk_period      :  time := 100 ns;
+   signal clk               :  std_logic := '0';
+   signal reset             :  std_logic := '0';
+   signal protoStream_i     :  std_logic_vector(7 downto 0);
+   signal fieldUniqueId_o   :  std_logic_vector(31 downto 0);
+   signal messageUniqueId_o :  std_logic_vector(31 downto 0);
+   signal data_o            :  std_logic_vector(31 downto 0);
+   signal messageValid_o    :  std_logic;
+   signal fieldValid_o      :  std_logic;
+   signal delimit_last_o    :  std_logic;
    
    file file_Serialized : text;
 -- }}}
@@ -34,7 +35,8 @@ begin
 protoDeserialize_inst: entity work.protoDeserialize
    port map (
      protoStream_i     => protoStream_i,  -- std_logic_vector(7 downto 0);
-     unique_id_o       => unique_id_o,          -- std_logic_vector(1 downto 0);
+     fieldUniqueId_o   => fieldUniqueId_o,          -- std_logic_vector(1 downto 0);
+     messageUniqueId_o => messageUniqueId_o,
      data_o            => data_o,         -- std_logic_vector;
      messageValid_o    => messageValid_o, -- std_logic;
      delimit_last_o    => delimit_last_o,

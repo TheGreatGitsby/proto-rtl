@@ -36,24 +36,6 @@ package template_pkg is
    -- Person Subtypes
    type phoneType is (MOBILE, HOME, WORK);
 
-   type Person_phoneNumber is record
-      phone_type : phoneType;
-   end record Person_phoneNumber;
-
-   --Person_phoneNumber delimited types
-   subtype number_t is std_logic_vector(7 downto 0);
-
-   -- Person Message
-   type Person is record
-      id     : std_logic_vector(31 downto 0);
-   end record Person;
-
-   --Person Delimted types
-   subtype name_t is std_logic_vector(7 downto 0);
-   subtype email_t is std_logic_vector(7 downto 0);
-
-   --Address Book Message
-
    -- Create new unique IDs for all fields
    constant NUM_MSG_HIERARCHY : natural := 3;
    constant FIELD_NUM_BITS : natural := 5;
@@ -100,6 +82,26 @@ constant UNIQUE_ID_TYPE_LUT : varTypeLut_arr := (
 6 => CUSTOM_t,   --enum
 7 => EMBEDDED_MESSAGE); -- the timestamp message
 
+-- maps unique id back to protobuf id
+type unique_to_proto_id_map_t is array (0 to NUM_FIELDS - 1) of natural; 
+constant unique_to_proto_id_map : unique_to_proto_id_map_t :=
+(
+0 => 1,
+1 => 1,
+2 => 2,
+3 => 3,
+4 => 4,
+5 => 1,
+6 => 2,
+7 => 5
+);
+
+
+-- The following describes all the message unique ids included in the
+-- top level messages
+constant ADDRESSBOOK_NUM_FIELDS : natural := 3;
+type addressbookId_t is array (0 to ADDRESSBOOK_NUM_FIELDS-1) of natural;
+constant AddressbookId : addressbookId_t := (0, 4, 7);
    
 
 end package template_pkg;

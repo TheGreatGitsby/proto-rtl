@@ -25,6 +25,11 @@ architecture arch of tb_template is
    signal messageLast_o    :  std_logic;
    signal fieldValid_o      :  std_logic;
    signal delimit_last_o    :  std_logic;
+   signal AddressBook_valid : std_logic;
+   signal AddressBook_last : std_logic;
+   signal AddressBook_data : std_logic_vector(31 downto 0);
+   signal AddressBook_user : std_logic_vector(3 downto 0);
+   signal AddressBook_id : std_logic_vector(3 downto 0);
    
    file file_Serialized : text;
 -- }}}
@@ -32,18 +37,21 @@ begin
 
 --! @brief DUT Port Map
 -- {{{
-protoDeserialize_inst: entity work.protoDeserialize
-   port map (
-     protoStream_i     => protoStream_i,  -- std_logic_vector(7 downto 0);
-     fieldUniqueId_o   => fieldUniqueId_o,          -- std_logic_vector(1 downto 0);
-     messageUniqueId_o => messageUniqueId_o,
-     data_o            => data_o,         -- std_logic_vector;
-     messageLast_o     => messageLast_o, -- std_logic;
-     delimit_last_o    => delimit_last_o,
-     fieldValid_o      => fieldValid_o,   -- std_logic
-     clk_i             => clk,
-     reset_i           => reset
-);
+message_demux: entity work.message_demux
+   port map 
+   (
+      protoStream_i     => protoStream_i, -- std_logic_vector(7 downto 0);
+
+      AddressBook_valid => AddressBook_valid, -- std_logic;
+      AddressBook_last  => AddressBook_last, -- std_logic;
+      AddressBook_data  => AddressBook_data, -- std_logic_vector(31 downto 0);
+      AddressBook_user  => AddressBook_user, -- std_logic_vector(3 downto 0);
+      AddressBook_id    => AddressBook_id, -- std_logic_vector(3 downto 0);
+
+      reset => reset, -- std_logic;
+      clk   => clk -- std_logic
+   );
+
    -- }}}
 
    --! @brief Clock Creation

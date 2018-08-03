@@ -1,5 +1,7 @@
 library ieee;
 use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
+use work.template_pkg.all;
 
 --! Entity Declaration
 -- {{{
@@ -24,7 +26,6 @@ end message_demux;
 architecture arch of message_demux is 
    --! @brief Signal Declarations
    -- {{{
-   signal protoStream     : std_logic_vector(7 downto 0);
    signal fieldUniqueId   : std_logic_vector(31 downto 0);
    signal messageUniqueId : std_logic_vector(31 downto 0);
    signal data            : std_logic_vector(31 downto 0);
@@ -41,7 +42,7 @@ begin
    protoDeserialize: entity work.protoDeserialize
    port map 
    (
-      protoStream_i     => protoStream, -- std_logic_vector(7 downto 0);
+      protoStream_i     => protoStream_i, -- std_logic_vector(7 downto 0);
       fieldUniqueId_o   => fieldUniqueId, -- std_logic_vector(31 downto 0);
       messageUniqueId_o => messageUniqueId, -- std_logic_vector(31 downto 0);
       data_o            => data, -- std_logic_vector(31 downto 0);
@@ -49,7 +50,7 @@ begin
       fieldValid_o      => fieldValid, -- std_logic;
       delimit_last_o    => delimit_last, -- std_logic;
       clk_i             => clk, -- std_logic;
-      reset_i           => reset, -- std_logic
+      reset_i           => reset -- std_logic
    );
 
 
@@ -57,8 +58,8 @@ begin
    --! @brief RTL
    -- {{{
    -- convertes field and message ID's back to protobuf Ids
-   fieldProtoId   <= std_logic_vector(to_unsigned(unique_to_field_id_map(fieldUniqueId), 4));
-   messageProtoId <= std_logic_vector(to_unsigned(unique_to_field_id_map(messageUniqueId), 4));
+   fieldProtoId   <= std_logic_vector(to_unsigned(unique_to_proto_id_map(to_integer(unsigned(fieldUniqueId))), 4));
+   messageProtoId <= std_logic_vector(to_unsigned(unique_to_proto_id_map(to_integer(unsigned(messageUniqueId))), 4));
 
    -- Message Listeners
    -- The Id field keeps the current message ID as given
@@ -71,14 +72,14 @@ begin
    -- the highest level message id even though that last beat
    -- may pertain to an embedded message.
 
-   AddressBook_listener : process(all) 
+   AddressBook_listener : process(messageUniqueId, fieldValid, messageLast, fieldProtoId, messageProtoId, data) 
       variable myMessage : bit := '0';
    begin
       -- check if the unique message id belongs to
       -- this message type
       myMessage := '0';
       for i in 0 to ADDRESSBOOK_NUM_FIELDS - 1 loop
-         if AddressbookId(i) = messageUniqueId then
+         if AddressbookId(i) = to_integer(unsigned(messageUniqueId)) then
             myMessage := '1';
          end if;
       end loop;

@@ -4,7 +4,7 @@ use ieee.math_real.all;
  
 package template_pkg is
 
-   --protobuf non-specific types
+   --protobuf specified types
    type wiretype_t is (VARINT, SIXTYFOURBIT, LENGTH_DELIMITED, START_GROUP,
                        END_GROUP, THIRTYTWOBIT);
 
@@ -71,16 +71,30 @@ type Fields is (PERSON_NAME, PERSON_ID, PERSON_EMAIL,
 
 type varTypes is (EMBEDDED_MESSAGE, VARINT, STRING_t, INT32, CUSTOM_t);
 type varTypeLut_arr is array (0 to NUM_FIELDS-1) of varTypes;
+constant UNIQUE_ID_TYPE_LUT : varTypeLut_arr := 
+(
+   0 => EMBEDDED_MESSAGE,
+   1 => STRING_t,
+   2 => INT32,
+   3 => STRING_t,
+   4 => EMBEDDED_MESSAGE,
+   5 => STRING_t,
+   6 => CUSTOM_t,   --enum
+   7 => EMBEDDED_MESSAGE -- the timestamp message
+); 
 
-constant UNIQUE_ID_TYPE_LUT : varTypeLut_arr := (
-0 => EMBEDDED_MESSAGE,
-1 => STRING_t,
-2 => INT32,
-3 => STRING_t,
-4 => EMBEDDED_MESSAGE,
-5 => STRING_t,
-6 => CUSTOM_t,   --enum
-7 => EMBEDDED_MESSAGE); -- the timestamp message
+
+type wireTypeLut_arr is array (0 to NUM_FIELDS-1) of wiretype_t;
+constant WIRE_TYPE_LUT : wireTypeLut_arr := (
+   0 => VARINT,
+   1 => LENGTH_DELIMITED,
+   2 => THIRTYTWOBIT,
+   3 => LENGTH_DELIMITED,
+   4 => LENGTH_DELIMITED,
+   5 => LENGTH_DELIMITED,
+   6 => THIRTYTWOBIT,
+   7 => LENGTH_DELIMITED
+);
 
 -- maps unique id back to protobuf id
 type unique_to_proto_id_map_t is array (0 to NUM_FIELDS - 1) of natural; 

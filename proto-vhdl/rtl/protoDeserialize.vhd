@@ -56,7 +56,6 @@ begin
    -- {{{
    probe <= VARINT_NUM_BYTES_MAX;
    
-   --wireType <= protostream_i(2 downto 0);
    wireType <= wiretype_t'VAL(to_integer(unsigned(protostream_i(2 downto 0))));
    fieldNumber <= protostream_i(7 downto 3);
 

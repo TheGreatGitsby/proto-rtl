@@ -5,25 +5,25 @@ use work.template_pkg.all;
 
 --! Entity Declaration
 -- {{{
-entity message_demux is
+entity message_mux is
    port 
    (
-      protoStream_i     : in std_logic_vector(7 downto 0);
+      protoStream_o     : out std_logic_vector(7 downto 0);
 
-      AddressBook_valid : out std_logic;
-      AddressBook_last  : out std_logic;
-      AddressBook_data  : out std_logic_vector(31 downto 0);
-      AddressBook_user  : out std_logic_vector(3 downto 0);
-      AddressBook_id    : out std_logic_vector(3 downto 0);
+      AddressBook_valid : in std_logic;
+      AddressBook_last  : in std_logic;
+      AddressBook_data  : in std_logic_vector(31 downto 0);
+      AddressBook_user  : in std_logic_vector(3 downto 0);
+      AddressBook_id    : in std_logic_vector(3 downto 0);
 
       reset : in std_logic;
       clk   : in std_logic
    );
-end message_demux;
+end message_mux;
 -- }}}
 --! @brief Architecture Description
 -- {{{
-architecture arch of message_demux is 
+architecture arch of message_mux is 
    --! @brief Signal Declarations
    -- {{{
    signal fieldUniqueId   : std_logic_vector(31 downto 0);
@@ -39,16 +39,15 @@ architecture arch of message_demux is
 begin
    --! @brief Component Port Maps
    -- {{{
-   protoDeserialize: entity work.protoDeserialize
+   protoSerialize: entity work.protoSerialize
    port map 
    (
-      protoStream_i     => protoStream_i, -- std_logic_vector(7 downto 0);
-      fieldUniqueId_o   => fieldUniqueId, -- std_logic_vector(31 downto 0);
-      messageUniqueId_o => messageUniqueId, -- std_logic_vector(31 downto 0);
-      data_o            => data, -- std_logic_vector(31 downto 0);
-      messageLast_o     => messageLast, -- std_logic;
-      fieldValid_o      => fieldValid, -- std_logic;
-      delimit_last_o    => delimit_last, -- std_logic;
+      protoStream_o     => protoStream_o, -- std_logic_vector(7 downto 0);
+      fieldUniqueId_i   => fieldUniqueId, -- std_logic_vector(31 downto 0);
+      messageUniqueId_i => messageUniqueId, -- std_logic_vector(31 downto 0);
+      data_i            => data, -- std_logic_vector(31 downto 0);
+      messageLast_i     => messageLast, -- std_logic;
+      fieldValid_i      => fieldValid, -- std_logic;
       clk_i             => clk, -- std_logic;
       reset_i           => reset -- std_logic
    );
@@ -57,7 +56,7 @@ begin
    -- }}}
    --! @brief RTL
    -- {{{
-   -- convertes field and message ID's back to protobuf Ids
+   -- converts field and message ID's back to protobuf Ids
    fieldProtoId   <= std_logic_vector(to_unsigned(unique_to_proto_id_map(to_integer(unsigned(fieldUniqueId))), 4));
    messageProtoId <= std_logic_vector(to_unsigned(unique_to_proto_id_map(to_integer(unsigned(messageUniqueId))), 4));
 

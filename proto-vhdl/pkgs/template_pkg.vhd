@@ -4,6 +4,12 @@ use ieee.math_real.all;
  
 package template_pkg is
 
+   -- generic stuff
+   constant DWIDTH : natural := 32;
+   type byte_arr_t is array (0 to DWIDTH/8-1) of std_logic_vector(7 downto 0);
+   type varint_arr_t is array (0 to DWIDTH/8) of std_logic_vector(6 downto 0);
+
+
    --protobuf specified types
    type wiretype_t is (VARINT, SIXTYFOURBIT, LENGTH_DELIMITED, START_GROUP,
                        END_GROUP, THIRTYTWOBIT);
@@ -47,10 +53,10 @@ package template_pkg is
       
 
    -- Embedded message handling
-   constant MSG_X_MULTIPLIER : natural := 2 ** FIELD_NUM_BITS;
-   constant MSG_X_Y_MULTIPLIER : natural := 2 ** (FIELD_NUM_BITS*2);
-   constant MSG_1   :  natural := 1 * MSG_X_MULTIPLIER;
-   constant MSG_1_1   :  natural := 4 * MSG_X_Y_MULTIPLIER;
+   constant MSG_X_MULTIPLIER   :  natural := 2 ** FIELD_NUM_BITS;
+   constant MSG_X_Y_MULTIPLIER :  natural := 2 ** (FIELD_NUM_BITS*2);
+   constant MSG_1              :  natural := 1 * MSG_X_MULTIPLIER;
+   constant MSG_1_1            :  natural := 4 * MSG_X_Y_MULTIPLIER;
 
    type msg_identifier_arr_t is array (0 to 2**(MAX_ARRAY_IDX_BITS)-1) of natural range 0 to NUM_FIELDS-1;
    constant UNIQUE_ID_LUT : msg_identifier_arr_t := (

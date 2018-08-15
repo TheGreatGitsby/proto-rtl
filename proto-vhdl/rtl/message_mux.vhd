@@ -60,11 +60,12 @@ begin
    -- }}}
    --! @brief RTL
    -- {{{
-   -- converts field and message ID's to unique Ids
-   fieldUniqueId   <= std_logic_vector(to_unsigned(unique_to_proto_id_map(to_integer(unsigned(fieldUniqueId))), 4));
-   messageUniqueId <= std_logic_vector(to_unsigned(unique_to_proto_id_map(to_integer(unsigned(messageUniqueId))), 4));
+   process(clk)
+   begin
+      if 
 
--- }}}
+   end process;
+   -- }}}
 end arch;
 --}}}
 

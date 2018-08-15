@@ -11,7 +11,8 @@ entity protoUniqueId is
      protoMessageId_last : in std_logic;
      protoFieldId_i      : in std_logic_vector(FIELD_NUM_BITS-1 downto 0);
 
-     UniqueId_o        : out natural;
+     protoWireType_o   : out wiretype_t;
+
      clk_i             : in std_logic;
      reset_i           : in std_logic
 );
@@ -24,6 +25,9 @@ architecture arch of protoUniqueId is
 -- {{{
    type uniqueIdLutAddress_arr_t is array (0 to NUM_MSG_HIERARCHY-1) of std_logic_vector(FIELD_NUM_BITS-1 downto 0);
    signal uniqueIdLutAddress_arr : uniqueIdLutAddress_arr_t;
+
+   signal UniqueId : natural;
+
 -- }}}
 
 begin
@@ -32,8 +36,7 @@ begin
    -- }}}
    --! @brief RTL
    -- {{{
-
-
+   protoWireType_o <= WIRE_TYPE_LUT(UniqueId);
 
    -- Mask off the upper bits of the unique ID Lut if the bits
    -- are not used (ie not enough active embedded msgs to make
@@ -58,7 +61,7 @@ begin
    end process;
 
    -- Always holds the current Unique ID of the field being processed.
-   UniqueId_o <= UNIQUE_ID_LUT(to_integer(unsigned(
+   UniqueId <= UNIQUE_ID_LUT(to_integer(unsigned(
                     uniqueIdLutAddress and uniqueIdLutAddressMask)));
        
    process(clk_i)

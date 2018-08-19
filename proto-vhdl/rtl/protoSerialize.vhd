@@ -33,15 +33,27 @@ architecture arch of protoSerialize is
    type embeddedMsg_arr_t is array (0 to 128-1) of std_logic_vector(7 downto 0);
    signal byte_buffer   :  embeddedMsg_arr_t;
 
-   signal wireType      :  wiretype_t;
-   signal last_wireType :  wiretype_t;
-   signal wireType_vec  :  std_logic_vector(2 downto 0);
-   signal fieldProtoId       :  std_logic_vector(4 downto 0);
-   signal last_messageUniqueId : std_logic_vector(31 downto 0);
-   signal MessageProtoId       :  std_logic_vector(4 downto 0);
+   -- TODO: figure out the actual value
+   constant MAX_NUM_BUF_BYTES : natural := 16;
+   
+   -- Pipelined Registers
+   constant NUM_PIPE_STAGES : natural := 3;
+   type natural_arr_t is array (0 to NUM_PIPE_STAGES-1) of natural;
+   type word_arr_t is array (0 to NUM_PIPE_STAGES-1) of std_logic_vector(31 downto 0);
+   type wiretype_arr_t is array (0 to NUM_PIPE_STAGES-1) of wiretype_t;
+   signal byte_buf_ptr     :  natural_arr_t;
+   signal fieldvalid       :  std_logic_vector(NUM_PIPE_STAGES-1 downto 0);
+   signal fieldUniqueId    :  word_arr_t;
+   signal wireType_pipe    :  wiretype_arr_t;
+   signal embedded_msg_sof :  std_logic_vector(NUM_PIPE_STAGES-1 downto 0);
+   signal embedded_msg_eof :  std_logic_vector(NUM_PIPE_STAGES-1 downto 0);
+   signal delimit_len_ptr  :  natural_arr_t;
+   signal delimit_count    :  natural_arr_t;
 
-   signal delimit_count : natural;
-   signal delimit_len_ptr : natural;
+   signal wireType       :  wiretype_t;
+   signal wireType_vec   :  std_logic_vector(2 downto 0);
+   signal fieldProtoId   :  std_logic_vector(4 downto 0);
+   signal MessageProtoId :  std_logic_vector(4 downto 0);
 
    signal data_byte_arr : byte_arr_t; 
    signal data_varint_arr : varint_arr_t;
@@ -54,8 +66,6 @@ architecture arch of protoSerialize is
    signal embeddedMsgCountStack : delimitLength_t;
 
    signal numActiveMsgs : natural range 0 to MAX_EMBEDDED_DELIMITS;
-
-   signal last_fieldUniqueId : std_logic_vector(31 downto 0);
 
    signal processing_message :  std_logic := '0';
    signal processing_field   :  std_logic := '0';
@@ -89,7 +99,7 @@ begin
       end loop;
    end process;
 
-   process(clk)
+   process(clk_i)
    begin
       if rising_edge(clk_i) then
          --defaults
@@ -100,8 +110,9 @@ begin
          embedded_msg_sof(0) <= '0';
          embedded_msg_eof(0) <= '0';
          delimit_len_ptr(0)  <= delimit_len_ptr(NUM_PIPE_STAGES-1); --hold the value
-         delimit_count(0)  <= 0
-         for i in 1 to NUM_PIPE_STAGES-1 loop
+         delimit_count(0)  <= 0;
+         
+         for i in (1 to NUM_PIPE_STAGES-1) loop
             if fieldValid_i = '1' then
                byte_buf_ptr(i)     <= byte_buf_ptr(i-1);
                fieldvalid(i)       <= fieldvalid(i-1);
@@ -127,7 +138,7 @@ begin
                -- need to add a space for length
                byte_buf(1) <= x"00";
                byte_buf_ptr(0) <= 2;
-               embedded_msf_sof(0) <= '1';
+               embedded_msg_sof(0) <= '1';
             end if;
             if messageLast_i = '1' then
                embedded_msg_eof(0) <= '1';
@@ -212,7 +223,7 @@ begin
          -- The fourth stage of the pipeline copies the byte_buf to the 
          -- embedded Message ring.
          if fieldvalid(2) = '1' then
-            for i in 0 to MAX_NUM_OUTPUT_BYTES-1 loop
+            for i in 0 to MAX_NUM_BUF_BYTES-1 loop
                if (i < byte_buf_ptr) then
                   embedded_msg_ring(embedded_msg_ptr+i) <= byte_buf(i);
                end if;

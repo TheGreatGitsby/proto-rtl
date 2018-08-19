@@ -8,7 +8,10 @@ use work.template_pkg.all;
 entity protoUniqueId is
    port (
      protoMessageId_i    : in std_logic_vector(FIELD_NUM_BITS-1 downto 0);
-     protoMessageId_last : in std_logic;
+     -- unfortunately we need a message SOF to cover the case of there
+     -- being an embedded message id identical to the parent id.
+     protoMessageId_sof : in std_logic;
+     protoMessageId_eof : in std_logic;
      protoFieldId_i      : in std_logic_vector(FIELD_NUM_BITS-1 downto 0);
 
      protoWireType_o   : out wiretype_t;
@@ -78,15 +81,22 @@ begin
    end process;
 
          process(clk_i)
+         variable messageStartCount : natural range 0 to 1;
+         variable messageEndCount : natural range 0 to NUM_MSG_HIERARCHY-1;
          begin
             if rising_edge(clk_i) then
                if reset_i = '1' then
                  numActiveMsgs <= 0;
                else            
-                  protoMessageId_prev <= protoMessageId_i;
-                  if (protoMessageId_i /= protoMessageId_prev) and protoMessageId_last = '0' then
-                       numActiveMsgs <= numActiveMsgs + 1;
-                  elsif protoMessageId_last = '1' then 
+                  --defaults
+                  messageEndCount := 0;
+                  messageStartCount := 0;
+
+                  if protoMessageId_sof = '1' then
+                       messageStartCount := 1;
+                  end if;
+
+                  if protoMessageId_eof = '1' then 
                        for i in NUM_MSG_HIERARCHY-1 downto 0 loop
                           if (numActiveMsgs > i) then
                              -- the end of a message. If there are multiple
@@ -97,10 +107,12 @@ begin
                                 messageEndCount := messageEndCount + 1;
                              end if;
                           end if;
-                          numActiveMsgs <= numActiveMsgs - messageEndCount;
                        end loop;
-                end if;
+                   end if;
+
+                   numActiveMsgs <= numActiveMsgs + messageStartCount - messageEndCount;
              end if;
+          end if;
       end process;
          -- }}}
       end arch;

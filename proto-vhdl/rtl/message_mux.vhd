@@ -69,9 +69,9 @@ protoUniqueId: entity work.protoUniqueId
      protoMessageId_i    => protoMessageId_i, -- std_logic_vector(FIELD_NUM_BITS-1 downto 0);
      -- unfortunately we need a message SOF to cover the case of there
      -- being an embedded message id identical to the parent id.
-     protoMessageId_sof => AddressBook_id(BIT_SOF), -- std_logic;
-     protoMessageId_eof => AddressBook_id(BIT_EOF), -- std_logic;
-     protoFieldId_i     => protoFieldId_i, -- std_logic_vector(FIELD_NUM_BITS-1 downto 0);
+     protoMessageId_sof_i => AddressBook_id(BIT_SOF), -- std_logic;
+     protoMessageId_eof_i => AddressBook_id(BIT_EOF), -- std_logic;
+     protoFieldId_i       => protoFieldId_i, -- std_logic_vector(FIELD_NUM_BITS-1 downto 0);
 
      protoWireType_o   => protoWireType_o, -- wiretype_t;
 

@@ -10,9 +10,9 @@ entity protoUniqueId is
      protoMessageId_i    : in std_logic_vector(FIELD_NUM_BITS-1 downto 0);
      -- unfortunately we need a message SOF to cover the case of there
      -- being an embedded message id identical to the parent id.
-     protoMessageId_sof : in std_logic;
-     protoMessageId_eof : in std_logic;
-     protoFieldId_i      : in std_logic_vector(FIELD_NUM_BITS-1 downto 0);
+     protoMessageId_sof :  in std_logic;
+     protoMessageId_eof :  in std_logic;
+     protoFieldId_i     :  in std_logic_vector(FIELD_NUM_BITS-1 downto 0);
 
      protoWireType_o   : out wiretype_t;
 

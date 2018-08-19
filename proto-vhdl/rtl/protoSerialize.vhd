@@ -12,8 +12,14 @@ entity protoSerialize is
       select_o          : out std_logic_vector(DWIDTH/8-1 downto 0); 
       valid_o           : out std_logic;
 
-      fieldUniqueId_i   :  in std_logic_vector(31 downto 0);
-      messageUniqueId_i :  in std_logic_vector(31 downto 0);
+      fieldProtoId_i    :  in std_logic_vector(4 downto 0);
+
+      MessageProtoId_i  :  in std_logic_vector(4 downto 0);
+      Message_sof_i     :  in std_logic;
+      Message_eof_i     :  in std_logic;
+
+      wireType_i        :  in wiretype_t;
+
       data_i            :  in std_logic_vector(31 downto 0);
       messageLast_i     :  in std_logic;
       fieldLast_i       :  in std_logic;
@@ -40,20 +46,15 @@ architecture arch of protoSerialize is
    constant NUM_PIPE_STAGES : natural := 3;
    type natural_arr_t is array (0 to NUM_PIPE_STAGES-1) of natural;
    type word_arr_t is array (0 to NUM_PIPE_STAGES-1) of std_logic_vector(31 downto 0);
-   type wiretype_arr_t is array (0 to NUM_PIPE_STAGES-1) of wiretype_t;
    signal byte_buf_ptr     :  natural_arr_t;
    signal fieldvalid       :  std_logic_vector(NUM_PIPE_STAGES-1 downto 0);
-   signal fieldUniqueId    :  word_arr_t;
-   signal wireType_pipe    :  wiretype_arr_t;
+   signal wireType_reg     :  wiretype_t;
    signal embedded_msg_sof :  std_logic_vector(NUM_PIPE_STAGES-1 downto 0);
    signal embedded_msg_eof :  std_logic_vector(NUM_PIPE_STAGES-1 downto 0);
    signal delimit_len_ptr  :  natural_arr_t;
    signal delimit_count    :  natural_arr_t;
 
-   signal wireType       :  wiretype_t;
    signal wireType_vec   :  std_logic_vector(2 downto 0);
-   signal fieldProtoId   :  std_logic_vector(4 downto 0);
-   signal MessageProtoId :  std_logic_vector(4 downto 0);
 
    signal data_byte_arr : byte_arr_t; 
    signal data_varint_arr : varint_arr_t;
@@ -72,10 +73,7 @@ architecture arch of protoSerialize is
 
 begin
 
-   wireType       <= WIRE_TYPE_LUT(to_integer(unsigned(fieldUniqueId_i)));
-   wireType_vec   <= std_logic_vector(to_unsigned(wiretype_t'POS(wireType), 3));
-   fieldProtoId   <= std_logic_vector(to_unsigned(unique_to_proto_id_map(to_integer(unsigned(fieldUniqueId_i))), 5));
-   MessageProtoId <= std_logic_vector(to_unsigned(unique_to_proto_id_map(to_integer(unsigned(messageUniqueId_i))), 5));
+   wireType_vec   <= std_logic_vector(to_unsigned(wiretype_t'POS(wireType_i), 3));
 
    process(data_i)
    -- pack the byte array for easy byte access in rtl
@@ -105,23 +103,21 @@ begin
          --defaults
          byte_buf_ptr(0)     <= 0;
          fieldvalid(0)       <= '0';
-         fieldUniqueId(0)    <= fieldUniqueId_i;
-         wireType_pipe(0)    <= wireType;
          embedded_msg_sof(0) <= '0';
          embedded_msg_eof(0) <= '0';
          delimit_len_ptr(0)  <= delimit_len_ptr(NUM_PIPE_STAGES-1); --hold the value
          delimit_count(0)  <= 0;
+         fieldProtoId(0)  <= fieldProtoId_i 
          
          for i in (1 to NUM_PIPE_STAGES-1) loop
             if fieldValid_i = '1' then
                byte_buf_ptr(i)     <= byte_buf_ptr(i-1);
                fieldvalid(i)       <= fieldvalid(i-1);
-               fieldUniqueId(i)    <= fieldUniqueId(i-1);
-               wireType_pipe(i)    <= wireType_pipe(i-1);
                embedded_msg_sof(i) <= embedded_msg_sof(i-1);
                embedded_msg_eof(i) <= embedded_msg_eof(i-1);
-               delimit_len_ptr(i) <= delimit_len_ptr(i-1);
+               delimit_len_ptr(i)  <= delimit_len_ptr(i-1);
                delimit_count(i)    <= delimit_count(i-1);
+               fieldProtoId(i)     <= fieldProtoId(i-1);
             end if;
          end loop;
 
@@ -130,17 +126,16 @@ begin
    -- pipe.
          if fieldValid_i = '1' then
             -- TODO: and there is enough space (back pressure if not)
-            if processing_message = '0' then
-               processing_message <= '1';
+            if Message_sof_i = '1' then
                -- start of a new message
                -- add the embedded msg wire type
-               byte_buf(0) <= MessageProtoId & std_logic_vector(to_unsigned(wiretype_t'POS(LENGTH_DELIMITED), 3));
+               byte_buf(0) <= MessageProtoId_i & std_logic_vector(to_unsigned(wiretype_t'POS(LENGTH_DELIMITED), 3));
                -- need to add a space for length
                byte_buf(1) <= x"00";
                byte_buf_ptr(0) <= 2;
                embedded_msg_sof(0) <= '1';
             end if;
-            if messageLast_i = '1' then
+            if Message_eof_i = '1' then
                embedded_msg_eof(0) <= '1';
                processing_message <= '0';
             end if;
@@ -155,10 +150,13 @@ begin
                processing_field <= '1';
                -- it is a new field type
                -- need to add wiretype in byte_buffer
-               byte_buf(0)(byte_buf_ptr(0)) <= fieldProtoId & wireType_vec;
+               byte_buf(0)(byte_buf_ptr(0)) <= fieldProtoId(0) & wireType_vec;
                byte_buf_ptr(1) <= byte_buf_ptr(0)+1;
 
-               if wireType_pipe(0) = LENGTH_DELIMITED then
+               -- register to use wireType in next pipe stage
+               wireType_reg <= wireType_i;
+
+               if wireType_i = LENGTH_DELIMITED then
                   -- need to add a space for length
                   byte_buf(0)(byte_buf_ptr(0)+1) <= x"00";
                   byte_buf_ptr(1) <= byte_buf_ptr(0)+2;
@@ -168,7 +166,7 @@ begin
                end if;
 
                if fieldLast_i = '1' then
-                  --set flag for field no longed in progress
+                  --set flag for field no longer in progress
                   processing_field <= '0';
                end if;
             end if;
@@ -177,7 +175,7 @@ begin
          -- The third stage of the pipeline updates the byte_buf with
          -- payload data.
          if fieldvalid(1) = '1' then
-            case wireType_pipe(1) is 
+            case wireType_reg is 
                when VARINT =>
                   -- need to figure out a formula for the max interations
                   -- we need to for a varint.  right now we assume

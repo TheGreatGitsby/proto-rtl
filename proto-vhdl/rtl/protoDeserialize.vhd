@@ -42,6 +42,8 @@ signal uniqueIdLutAddressMask :  std_logic_vector(MAX_ARRAY_IDX_BITS - 1 downto 
 signal FieldUniqueId          :  natural range 0 to NUM_FIELDS-1;
 signal FieldUniqueIdType      :  varTypes;
 
+signal packed_repeated : std_logic;
+
 signal probe : natural;
 
 type state_t is (IDLE, KEY_DECODE, VARINT_DECODE, LENGTH_DELIMITED_DECODE, DECODE_UNTIL_DELIMIT); 
@@ -102,6 +104,7 @@ begin
             varintCount <= 0;
             fieldNumber_reg <= (OTHERS => '0');
             delimitCount <= 0;
+            packed_repeated <= '0';
          else
 
          case state is
@@ -139,17 +142,37 @@ begin
                   when STRING_t =>
                      delimitCount <= to_integer(unsigned(protoStream_i));
                      state <= DECODE_UNTIL_DELIMIT;
+                  -- These stats are packed-repeated since a non-LENGTH_DELIMITED type
+                  -- came in.
+                  when VARINT =>
+                     packed_repeated <= '1';
+                     delimitCount    <= to_integer(unsigned(protoStream_i));
+                     state           <= VARINT_DECODE;
                   when OTHERS =>
                      -- more cases to come...
-                     state <= VARINT_DECODE;
+                     delimitCount    <= to_integer(unsigned(protoStream_i));
+                     state           <= DECODE_UNTIL_DELIMIT;
                end case;
 
             when VARINT_DECODE =>
+               if packed_repeated = '1' then
+                  delimitCount <= delimitCount - 1;
+               end if;
                if (protostream_i(7) = '0') then
                   -- end of decode
                   varint_reg   <= (OTHERS => (OTHERS => '0'));
-                  state        <= KEY_DECODE;
                   varintCount <=  0;
+                  if packed_repeated = '1' then
+                     if delimitCount = 1 then
+                        packed_repeated <= '0';
+                        state <= KEY_DECODE; 
+                     else
+                        -- packed repeated field continues
+                        state <= VARINT_DECODE;
+                     end if;
+                  else
+                     state        <= KEY_DECODE;
+                  end if;
                else
                   varintCount <= varintCount + 1;
                   varint_reg(varintCount) <= protostream_i(6 downto 0);

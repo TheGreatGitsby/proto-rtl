@@ -57,7 +57,7 @@ begin
          if reset_i = '1' then
             state <= IDLE;
             delimitCount <= 0;
-            current_msg <= tree_GetBaseNode();
+            current_msg <= NULL_MSG;
          else
 
          case state is
@@ -75,12 +75,10 @@ begin
                      -- could be an embedded message or a
                      -- packed repeated field.
                      state <= LENGTH_DELIMITED_DECODE;
-                     --fetch from the tree 
-                     embedded_msg := tree_SearchForNode(numActiveMsgs+1, current_msg, fieldNumber );
-                     if embedded_msg != NULL_NODE then
-                        recv_msg <= '1';
-                        current_msg <= embedded_msg;
-                     end if;
+                     --fetch from the tree, next_node_id will be zero if
+                     -- it doesnt exist in the tree (ie this is not an
+                     -- embedded msg).
+                     next_node_id <= tree_SearchForNode(msg_tree, msg_tree_ptr, fieldNumber)
                   when OTHERS =>
                      -- not yet implemented
                end case;
@@ -169,16 +167,16 @@ begin
               messageStartCount := 0;
               messageEndCount := 0;
 
-
-
                if reset_i = '1' then
                  numActiveMsgs <= 0;
                else            
 
                   if (state = LENGTH_DELIMITED_DECODE) then
-                     if (recv_msg = '1') then
+                     if tree_NodeExists(next_node_id) then
                        messageStartCount := 1;
                        delimitCountStack(numActiveMsgs) <= to_integer(unsigned(protoStream_i))-1;
+                       message_id_o(numActiveMsgs) <= tree_GetNodeData(tree, next_node_id).msg_name;
+                       tree_ptr <= tree_AdvanceNodePtr(tree, tree_ptr, next_node_id)
                      end if;
                   end if;
 
@@ -199,7 +197,6 @@ begin
 
                   numActiveMsgs <= numActiveMsgs + messageStartCount - messageEndCount;
 
-                  message_id_o(numActiveMsgs) <= current_msg.data.msg_name;
 
                   for i in 0 to NUM_MSG_HIERARCHY-1 loop
                      if (i > numActiveMsgs) then

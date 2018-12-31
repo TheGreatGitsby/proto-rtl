@@ -48,6 +48,7 @@ package tree_pkg is
    type path_t is array (0 to NUM_MSG_HIERARCHY-1) of natural;
    type tree_meta_t is record
       cur_node_id : natural;
+      level : natural;
       cur_path : path_t;
    end record;
    type node_id_lut_t is array (0 to NUM_MSGS-1) of node_t;
@@ -203,6 +204,22 @@ package tree_pkg is
                                 unique_id : natural)
                                 return tree_meta_t is
    begin 
+      variable tree_meta_new : tree_meta_t;
+
+      tree_meta_new.cur_node_id                   <= unique_id;
+      tree_meta_new.level                         <= tree_meta.level + 1;
+      tree_meta_new.cur_path(tree_meta.level + 1) <= unique_id;
+      return tree_meta_new;
+
+   end function;
+
+   function tree_RewindNodePtr(tree_meta : tree_meta_t)
+                                return tree_meta_t is
+   begin 
+      variable tree_meta_new : tree_meta_t;
+
+      tree_meta_new.level                         <= tree_meta.level - 1;
+      return tree_meta_new;
 
    end function;
 

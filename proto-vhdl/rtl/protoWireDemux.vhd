@@ -160,12 +160,14 @@ begin
          process(clk_i)
             variable messageEndCount : natural range 0 to NUM_MSG_HIERARCHY-1;
             variable messageStartCount : natural range 0 to 1;
+            variable tree_ptr_var : tree_meta_t;
          begin
             if rising_edge(clk_i) then
 
               messageLast_o <= '0';
               messageStartCount := 0;
               messageEndCount := 0;
+              tree_ptr_var := tree_ptr;
 
                if reset_i = '1' then
                  numActiveMsgs <= 0;
@@ -176,7 +178,7 @@ begin
                        messageStartCount := 1;
                        delimitCountStack(numActiveMsgs) <= to_integer(unsigned(protoStream_i))-1;
                        message_id_o(numActiveMsgs) <= tree_GetNodeData(tree, next_node_id).msg_name;
-                       tree_ptr <= tree_AdvanceNodePtr(tree, tree_ptr, next_node_id)
+                       tree_ptr_var <= tree_AdvanceNodePtr(tree, tree_ptr_var, next_node_id)
                      end if;
                   end if;
 
@@ -188,6 +190,7 @@ begin
                         -- messages ending at the same time, the outer
                         -- most message takes priority with reference to 
                         -- messageUniqueId_o
+                        tree_ptr_var := tree_RewindNodePtr(tree_ptr_var);
                         if (delimitCountStack(i) = 1) then
                            messageLast_o    <= '1';
                            messageEndCount := messageEndCount + 1;
@@ -196,6 +199,7 @@ begin
                   end loop;
 
                   numActiveMsgs <= numActiveMsgs + messageStartCount - messageEndCount;
+                  tree_ptr <= tree_ptr_var;
 
 
                   for i in 0 to NUM_MSG_HIERARCHY-1 loop

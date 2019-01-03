@@ -55,7 +55,7 @@ package tree_pkg is
       level : natural;
       cur_path : path_t;
    end record;
-   type node_id_lut_t is array (0 to NUM_MSGS-1) of node_t;
+   type node_id_lut_t is array (0 to NUM_MSGS) of node_t;
    type tree_object_t is record
       tree : tree_t;
       node_lut : node_id_lut_t;

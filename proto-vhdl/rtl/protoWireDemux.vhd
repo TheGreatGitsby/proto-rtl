@@ -1,14 +1,15 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
-use work.template_pkg.all;
+use work.proto_pkg.all;
+use work.tree_pkg.all;
 
 --! Entity Declaration
 -- {{{
 entity protoWireDemux is
    port (
      protoStream_i :  in std_logic_vector(7 downto 0);
-     message_id_o  :  out message_id_arr(0 to MAX_EMBEDD_MSGS-1);
+     message_id_o  :  out message_id_arr;
      field_id_o    :  out std_logic_vector(4 downto 0);
      data_o        :  out std_logic_vector(7 downto 0);
      fieldLast_o   :  out std_logic;
@@ -32,6 +33,11 @@ signal delimitCountStack     :  delimitLength_t;
 signal delimitCount          : natural range 0 to 255;
 
 signal numActiveMsgs          :  natural := 0;
+signal recv_msg              : std_logic;
+
+signal next_node_id   : natural;
+signal msg_tree   : tree_object_t := tree_generateTree(dependencies);
+signal msg_tree_ptr  : tree_meta_t;
 
 type state_t is (IDLE, KEY_DECODE, VARINT_DECODE, LENGTH_DELIMITED_DECODE, DECODE_UNTIL_DELIMIT); 
 signal  state : state_t := IDLE;
@@ -57,7 +63,6 @@ begin
          if reset_i = '1' then
             state <= IDLE;
             delimitCount <= 0;
-            current_msg <= NULL_MSG;
          else
 
          case state is
@@ -78,7 +83,7 @@ begin
                      --fetch from the tree, next_node_id will be zero if
                      -- it doesnt exist in the tree (ie this is not an
                      -- embedded msg).
-                     next_node_id <= tree_SearchForNode(msg_tree, msg_tree_ptr, fieldNumber)
+                     next_node_id <= tree_SearchForNode(msg_tree, msg_tree_ptr, to_integer(unsigned(fieldNumber)));
                   when OTHERS =>
                      -- not yet implemented
                end case;
@@ -87,24 +92,15 @@ begin
                -- here we need to decide if this is a length-delimited
                -- type such as a string or repeated value.  OR if 
                -- this is a message.
-               if (recv_msg = '1')
+               if (recv_msg = '1') then
                      -- update msg name outputs
-
                      state <= KEY_DECODE;
                else
                      delimitCount <= to_integer(unsigned(protoStream_i));
                      state <= DECODE_UNTIL_DELIMIT;
                   -- These stats are packed-repeated since a non-LENGTH_DELIMITED type
                   -- came in.
-                  when VARINT =>
-                     packed_repeated <= '1';
-                     delimitCount    <= to_integer(unsigned(protoStream_i));
-                     state           <= VARINT_DECODE;
-                  when OTHERS =>
-                     -- more cases to come...
-                     delimitCount    <= to_integer(unsigned(protoStream_i));
-                     state           <= DECODE_UNTIL_DELIMIT;
-               end case;
+               end if;
 
             when VARINT_DECODE =>
                if (protostream_i(7) = '0') then
@@ -124,7 +120,7 @@ begin
 
          -- This is an asynchrnous process to control the output
          -- data stream
-         process(protostream_i, state, FieldUniqueId, varint_reg, varintCount)
+         process(protostream_i, state, varintCount)
          begin
            --default case
            data_o(7 downto 0) <= (others => '0');
@@ -167,18 +163,18 @@ begin
               messageLast_o <= '0';
               messageStartCount := 0;
               messageEndCount := 0;
-              tree_ptr_var := tree_ptr;
+              tree_ptr_var := msg_tree_ptr;
 
                if reset_i = '1' then
                  numActiveMsgs <= 0;
                else            
 
                   if (state = LENGTH_DELIMITED_DECODE) then
-                     if tree_NodeExists(next_node_id) then
+                     if tree_NodeExists(next_node_id) = '1' then
                        messageStartCount := 1;
                        delimitCountStack(numActiveMsgs) <= to_integer(unsigned(protoStream_i))-1;
-                       message_id_o(numActiveMsgs) <= tree_GetNodeData(tree, next_node_id).msg_name;
-                       tree_ptr_var <= tree_AdvanceNodePtr(tree, tree_ptr_var, next_node_id)
+                       message_id_o(numActiveMsgs) <= tree_GetNodeData(msg_tree, next_node_id).msg_name;
+                       tree_ptr_var := tree_AdvanceNodePtr(msg_tree, tree_ptr_var, next_node_id);
                      end if;
                   end if;
 
@@ -199,12 +195,12 @@ begin
                   end loop;
 
                   numActiveMsgs <= numActiveMsgs + messageStartCount - messageEndCount;
-                  tree_ptr <= tree_ptr_var;
+                  msg_tree_ptr <= tree_ptr_var;
 
 
                   for i in 0 to NUM_MSG_HIERARCHY-1 loop
                      if (i > numActiveMsgs) then
-                        message_id_o(i) <= NULL_MSG;
+                        message_id_o(i) <= NULL_MESSAGE;
                      end if;
                   end loop;
 

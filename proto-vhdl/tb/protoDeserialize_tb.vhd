@@ -1,8 +1,10 @@
 library ieee;
 use ieee.std_logic_1164.all;
-use STD.textio.all;
-use ieee.std_logic_textio.all;
+--use STD.textio.all;
+--use ieee.std_logic_textio.all;
 use work.tb_stimulus_pkg.all;
+use work.proto_pkg.all;
+use work.tree_pkg.all;
 
 --! Entity Declaration
 -- {{{
@@ -20,36 +22,32 @@ architecture arch of tb_template is
    signal reset             :  std_logic := '0';
    signal protoStream_i     :  std_logic_vector(7 downto 0);
    signal fieldUniqueId_o   :  std_logic_vector(31 downto 0);
-   signal messageUniqueId_o :  std_logic_vector(31 downto 0);
-   signal data_o            :  std_logic_vector(31 downto 0);
-   signal messageLast_o    :  std_logic;
-   signal fieldValid_o      :  std_logic;
-   signal delimit_last_o    :  std_logic;
-   signal AddressBook_valid : std_logic;
-   signal AddressBook_last : std_logic;
-   signal AddressBook_data : std_logic_vector(31 downto 0);
-   signal AddressBook_user : std_logic_vector(3 downto 0);
-   signal AddressBook_id : std_logic_vector(3 downto 0);
+   signal field_id    : std_logic_vector(4 downto 0);
+   signal message_id          :  message_id_arr;
+   signal data            :  std_logic_vector(7 downto 0);
+   signal fieldLast        : std_logic;
+   signal messageLast    :  std_logic;
+   signal fieldValid      :  std_logic;
+
    
-   file file_Serialized : text;
+ --  file file_Serialized : text;
 -- }}}
 begin
 
 --! @brief DUT Port Map
 -- {{{
-message_demux: entity work.message_demux
+wire_demux: entity work.protoWireDemux
    port map 
    (
       protoStream_i     => protoStream_i, -- std_logic_vector(7 downto 0);
-
-      AddressBook_valid => AddressBook_valid, -- std_logic;
-      AddressBook_last  => AddressBook_last, -- std_logic;
-      AddressBook_data  => AddressBook_data, -- std_logic_vector(31 downto 0);
-      AddressBook_user  => AddressBook_user, -- std_logic_vector(3 downto 0);
-      AddressBook_id    => AddressBook_id, -- std_logic_vector(3 downto 0);
-
-      reset => reset, -- std_logic;
-      clk   => clk -- std_logic
+     message_id_o  => message_id, --:  out message_id_arr(0 to NUM_MSG_HIERARCHY-1);
+      field_id_o   => field_id, -- :  out std_logic_vector(4 downto 0);
+      data_o       => data, -- :  out std_logic_vector(7 downto 0);
+      fieldLast_o  => fieldLast, -- :  out std_logic;
+      messageLast_o => messageLast, --:  out std_logic;
+      fieldValid_o  => fieldValid, --:  out std_logic;
+      reset_i => reset, -- std_logic;
+      clk_i   => clk -- std_logic
    );
 
    -- }}}

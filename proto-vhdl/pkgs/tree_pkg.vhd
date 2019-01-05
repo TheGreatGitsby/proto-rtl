@@ -39,8 +39,8 @@ package tree_pkg is
                                                  1 => person_dependency,
                                                  2 => PhoneNumber_dependency);
 
+type message_id_arr is array (0 to NUM_MSG_HIERARCHY-1) of msg_t;
 -------------------------------------------------------------
-
 
    type node_t is record
       parent_node_id : natural;
@@ -83,6 +83,21 @@ package tree_pkg is
                           return tree_object_t;
    function tree_GetNodeUniqueId (tree_i : tree_object_t; level : natural; node_idx : natural)
                                                 return natural;
+   function tree_SearchForNode(tree : tree_object_t;
+                               tree_meta : tree_meta_t;
+                               field_id_i : natural)
+                               return natural;
+   function tree_NodeExists(node_id : natural)
+                            return std_logic;
+   function tree_AdvanceNodePtr(tree : tree_object_t;
+                                tree_meta : tree_meta_t;
+                                unique_id : natural)
+                                return tree_meta_t;
+   function tree_GetNodeData(tree : tree_object_t;
+                             unique_id : natural)
+                             return node_data;
+   function tree_RewindNodePtr(tree_meta : tree_meta_t)
+                               return tree_meta_t;
                           
 end package tree_pkg;
 
@@ -181,7 +196,7 @@ function tree_SearchForNode(tree : tree_object_t;
                           tree_meta : tree_meta_t;
                           field_id_i : natural)
                           return natural is
-   variable level : natural := tree_meta.level + 1;
+   variable level : natural := tree_meta.level;
 begin 
 
    for i in 0 to MAX_NODES_PER_LEVEL-1 loop

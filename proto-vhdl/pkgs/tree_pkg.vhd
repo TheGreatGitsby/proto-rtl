@@ -42,12 +42,19 @@ package tree_pkg is
 type message_id_arr is array (0 to NUM_MSG_HIERARCHY-1) of msg_t;
 -------------------------------------------------------------
 
-   type node_t is record
-      parent_node_id : natural;
-      data           : node_data;
-   end record;
+ --  type node_t is record
+ --     parent_node_id : natural;
+ --     data           : node_data;
+ --  end record;
 
-   type row_t is array (0 to MAX_NODES_PER_LEVEL-1) of natural;
+   type tree_node is record
+     node_id : natural;
+     parent_node_id : natural;
+   end record;
+   
+   type node_list is array (0 to MAX_NODES_PER_LEVEL-1) of natural;
+   
+   type row_t is array (0 to MAX_NODES_PER_LEVEL-1) of tree_node;
    type tree_t is array (0 to NUM_MSG_HIERARCHY-1) of row_t;
    type path_t is array (0 to NUM_MSG_HIERARCHY-1) of natural;
    type tree_meta_t is record
@@ -55,15 +62,15 @@ type message_id_arr is array (0 to NUM_MSG_HIERARCHY-1) of msg_t;
       level : natural;
       cur_path : path_t;
    end record;
-   type node_id_lut_t is array (0 to NUM_MSGS) of node_t;
+   type node_id_lut_t is array (0 to NUM_MSGS) of node_data;
    type tree_object_t is record
       tree : tree_t;
       node_lut : node_id_lut_t;
    end record;
 
-   constant NULL_NODE  : node_t := (
-                                    parent_node_id => 0,
-                                    data => (null_node_data));
+--   constant NULL_NODE  : node_t := (
+--                                    parent_node_id => 0,
+--                                    data => (null_node_data));
 
 
 --   constant message_tree : tree_t => (0 => (0 => (node_id => 1,
@@ -84,18 +91,17 @@ type message_id_arr is array (0 to NUM_MSG_HIERARCHY-1) of msg_t;
    function tree_GetNodeUniqueId (tree_i : tree_object_t; level : natural; node_idx : natural)
                                                 return natural;
    function tree_SearchForNode(tree : tree_object_t;
-                               tree_meta : tree_meta_t;
-                               field_id_i : natural)
-                               return natural;
+                               tree_meta : tree_meta_t)
+                               return node_list;
    function tree_NodeExists(node_id : natural)
                             return std_logic;
    function tree_AdvanceNodePtr(tree : tree_object_t;
                                 tree_meta : tree_meta_t;
                                 unique_id : natural)
                                 return tree_meta_t;
-   function tree_GetNodeData(tree : tree_object_t;
-                             unique_id : natural)
-                             return node_data;
+function tree_GetNodeData(tree : tree_object_t;
+                         unique_id_i : natural)
+                         return node_data;
    function tree_RewindNodePtr(tree_meta : tree_meta_t)
                                return tree_meta_t;
                           
@@ -106,8 +112,8 @@ package body tree_pkg is
    function tree_generateTree(dependencies : dependency_arr_t)
                           return tree_object_t is
                           
-      variable tree : tree_t := (others => (others => 0));
-      variable node_lut : node_id_lut_t := (others => NULL_NODE);
+      variable tree : tree_t := (others => (others => (others => 0)));
+      variable node_lut : node_id_lut_t := (others => null_node_data);
       variable unique_id : natural := 1;
       variable cur_parent_node_id : natural := 0;
       variable tree_obj : tree_object_t;
@@ -120,15 +126,15 @@ begin
             exit;
          end if;
          for k in 0 to MAX_NODES_PER_LEVEL-1 loop -- loop through slots in tree level j 
-            if node_lut(tree(level)(k)).data = dependencies(i)(level) then
+            if node_lut(tree(level)(k).node_id) = dependencies(i)(level) then
                -- node exists in the tree
-               cur_parent_node_id := tree(level)(k); 
+               cur_parent_node_id := tree(level)(k).node_id; 
                exit;
             end if;
-            if tree(level)(k) = 0 then
-              node_lut(unique_id).data := dependencies(i)(level);
-               node_lut(unique_id).parent_node_id := cur_parent_node_id;
-               tree(level)(k) := unique_id;
+            if tree(level)(k).node_id = 0 then
+              node_lut(unique_id) := dependencies(i)(level);
+               tree(level)(k).parent_node_id := cur_parent_node_id;
+               tree(level)(k).node_id := unique_id;
                unique_id := unique_id + 1;
                exit;
             end if;
@@ -143,70 +149,54 @@ function tree_GetNodeUniqueId (tree_i : tree_object_t; level : natural; node_idx
                       return natural is
       variable tree_var : tree_object_t := tree_i;
 begin
-      return tree_var.tree(level)(node_idx);
+      return tree_var.tree(level)(node_idx).node_id;
 end function;
 
-function tree_GetNode(tree : tree_object_t;
-                      level : natural;
-                      node_idx : natural)
-                      return node_t is
-begin
-      return tree.node_lut(tree_GetNodeUniqueId(tree, level, node_idx));
-end function;
+--function tree_GetNodeData(tree : tree_object_t;
+--                      level : natural;
+--                      node_idx : natural)
+--                      return node_data is
+--begin
+--      return tree.node_lut(tree_GetNodeUniqueId(tree, level, node_idx));
+--end function;
 
-function tree_GetNode(tree : tree_object_t;
+function tree_GetNodeData(tree : tree_object_t;
                       unique_id_i : natural)
-                      return node_t is
+                      return node_data is
 begin
       return tree.node_lut(unique_id_i);
 end function;
 
-function tree_GetNodeData(tree : tree_object_t;
-                      level : natural;
-                      node_idx : natural)
-                      return node_data is
-begin
-      return tree_GetNode(tree, level, node_idx).data;
-end function;
-
-function tree_GetNodeData(tree : tree_object_t;
-                      unique_id : natural)
-                      return node_data is
-begin
-      return tree_GetNode(tree, unique_id).data;
-end function;
-
-function tree_GetNodeFieldId(tree : tree_object_t;
-                      level : natural;
-                      node_idx : natural)
-                      return natural is
-begin
-      return tree_GetNodeData(tree, level, node_idx).field_id;
-end function;
+--function tree_GetNodeFieldId(tree : tree_object_t;
+--                      level : natural;
+--                      node_idx : natural)
+--                      return natural is
+--begin
+--      return tree_GetNodeData(tree, level, node_idx).field_id;
+--end function;
 
 function tree_GetNodeParentId(tree : tree_object_t;
                       level : natural;
                       node_idx : natural)
                       return natural is
 begin
-      return tree_GetNode(tree, level, node_idx).parent_node_id;
+      return tree.tree(level)(node_idx).parent_node_id;
 end function;
 
 function tree_SearchForNode(tree : tree_object_t;
-                          tree_meta : tree_meta_t;
-                          field_id_i : natural)
-                          return natural is
-   variable level : natural := tree_meta.level;
+                          tree_meta : tree_meta_t)
+                          return node_list is
+   variable level : natural := tree_meta.level+1;
+   variable return_list : node_list;
 begin 
-
    for i in 0 to MAX_NODES_PER_LEVEL-1 loop
-      if tree_GetNodeFieldId(tree, level, i) = field_id_i then
-         if tree_GetNodeParentId(tree, level, i) = tree_meta.cur_node_id then
-            return tree_GetNodeUniqueId(tree, level, i);
-         end if;
-      end if;
+       if tree_GetNodeParentId(tree, level, i) = tree_meta.cur_node_id then
+         return_list(i) := tree_GetNodeUniqueId(tree, level, i);
+       else
+         return_list(i) := 0;
+       end if;
    end loop;
-   return 0;
+   return return_list;
 end function;
 
 function tree_NodeExists(node_id : natural)
@@ -218,18 +208,6 @@ begin
    return '0';
 end function;
 
-function tree_GetNextNode(tree : tree_object_t;
-                          tree_meta : tree_meta_t;
-                          field_id_i : natural)
-                          return node_t is
-  variable unique_id : natural := tree_SearchForNode(tree, tree_meta, field_id_i);
-begin 
- 
-   if unique_id = 0 then
-      return NULL_NODE; 
-   end if;
-   return tree_GetNode(tree, unique_id);
-end function;
 
 function tree_AdvanceNodePtr(tree : tree_object_t;
                              tree_meta : tree_meta_t;

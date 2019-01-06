@@ -54,6 +54,7 @@ begin
        
    process(clk_i)
    variable fieldNumber_var : unsigned(4 downto 0);
+   variable child_nodes : node_list;
    begin
 
       if rising_edge(clk_i) then
@@ -83,7 +84,13 @@ begin
                      --fetch from the tree, next_node_id will be zero if
                      -- it doesnt exist in the tree (ie this is not an
                      -- embedded msg).
-                     next_node_id <= tree_SearchForNode(msg_tree, msg_tree_ptr, to_integer(unsigned(fieldNumber)));
+                     child_nodes := tree_SearchForNode(msg_tree, msg_tree_ptr);
+                     for i in 0 to MAX_NODES_PER_LEVEL-1 loop
+                       if tree_GetNodeData(msg_tree, child_nodes(i)).field_id = to_integer(unsigned(fieldNumber)) then
+                         recv_msg <= '1';
+                         next_node_id <= child_nodes(i);
+                       end if;
+                     end loop;
                   when OTHERS =>
                      -- not yet implemented
                end case;
@@ -170,7 +177,7 @@ begin
                else            
 
                   if (state = LENGTH_DELIMITED_DECODE) then
-                     if tree_NodeExists(next_node_id) = '1' then
+                     if recv_msg = '1' then
                        messageStartCount := 1;
                        delimitCountStack(numActiveMsgs) <= to_integer(unsigned(protoStream_i))-1;
                        message_id_o(numActiveMsgs) <= tree_GetNodeData(msg_tree, next_node_id).msg_name;

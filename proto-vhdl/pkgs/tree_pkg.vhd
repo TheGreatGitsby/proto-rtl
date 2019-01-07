@@ -4,20 +4,16 @@ use ieee.std_logic_1164.all;
  
 package tree_pkg is
  
-   constant NUM_MSG_HIERARCHY : natural := 3;
-   constant NUM_MSGS : natural := 3;
+   constant NUM_MSG_HIERARCHY : natural := 2;
+   constant NUM_MSGS : natural := 2;
    constant MAX_NODES_PER_LEVEL : natural := 1;
    
-   type msg_t is (NULL_MESSAGE, ADDRESS_BOOK, PERSON, PHONE_NUMBER); 
+   type msg_t is (NULL_MESSAGE, PERSON, PHONE_NUMBER); 
 
    type node_data is record
       field_id     : natural;
       msg_name     : msg_t;
    end record;
-
-                                             
-   constant AddressBook_msg : node_data := (field_id => 0,
-                                        msg_name => ADDRESS_BOOK);
 
    constant Person_msg : node_data := (field_id => 1,
                                         msg_name => PERSON);
@@ -30,14 +26,12 @@ package tree_pkg is
 
    type dependency_t is array (0 to NUM_MSG_HIERARCHY-1) of node_data;
 
-   constant addr_book_dependency : dependency_t := (0 => AddressBook_msg, others => null_node_data);
-   constant person_dependency : dependency_t := (0 => AddressBook_msg, 1 => Person_msg, others => null_node_data);
-   constant PhoneNumber_dependency : dependency_t := (0 => AddressBook_msg, 1 => Person_msg, 2 => PhoneNumber_msg);
+   constant person_dependency : dependency_t := (0 => Person_msg, others => null_node_data);
+   constant PhoneNumber_dependency : dependency_t := (0 => Person_msg, 1 => PhoneNumber_msg);
 
     type dependency_arr_t is array (0 to NUM_MSGS-1) of dependency_t;
-    constant dependencies : dependency_arr_t := (0 => addr_book_dependency,
-                                                 1 => person_dependency,
-                                                 2 => PhoneNumber_dependency);
+    constant dependencies : dependency_arr_t := (0 => person_dependency,
+                                                 1 => PhoneNumber_dependency);
 
 type message_id_arr is array (0 to NUM_MSG_HIERARCHY-1) of msg_t;
 -------------------------------------------------------------
@@ -56,7 +50,7 @@ type message_id_arr is array (0 to NUM_MSG_HIERARCHY-1) of msg_t;
    
    type row_t is array (0 to MAX_NODES_PER_LEVEL-1) of tree_node;
    type tree_t is array (0 to NUM_MSG_HIERARCHY-1) of row_t;
-   type path_t is array (0 to NUM_MSG_HIERARCHY-1) of natural;
+   type path_t is array (0 to NUM_MSG_HIERARCHY) of natural;
    type tree_meta_t is record
       cur_node_id : natural;
       level : natural;
@@ -90,7 +84,7 @@ type message_id_arr is array (0 to NUM_MSG_HIERARCHY-1) of msg_t;
                           return tree_object_t;
    function tree_GetNodeUniqueId (tree_i : tree_object_t; level : natural; node_idx : natural)
                                                 return natural;
-   function tree_SearchForNode(tree : tree_object_t;
+   function tree_GetChildNodes(tree : tree_object_t;
                                tree_meta : tree_meta_t)
                                return node_list;
    function tree_NodeExists(node_id : natural)
@@ -183,12 +177,15 @@ begin
       return tree.tree(level)(node_idx).parent_node_id;
 end function;
 
-function tree_SearchForNode(tree : tree_object_t;
+function tree_GetChildNodes(tree : tree_object_t;
                           tree_meta : tree_meta_t)
                           return node_list is
-   variable level : natural := tree_meta.level+1;
+   variable level : natural := tree_meta.level;
    variable return_list : node_list;
 begin 
+   if tree_meta.level = NUM_MSG_HIERARCHY then
+     return_list := (others => 0);
+   else
    for i in 0 to MAX_NODES_PER_LEVEL-1 loop
        if tree_GetNodeParentId(tree, level, i) = tree_meta.cur_node_id then
          return_list(i) := tree_GetNodeUniqueId(tree, level, i);
@@ -196,6 +193,7 @@ begin
          return_list(i) := 0;
        end if;
    end loop;
+   end if;
    return return_list;
 end function;
 

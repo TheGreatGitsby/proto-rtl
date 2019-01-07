@@ -84,7 +84,7 @@ begin
                      --fetch from the tree, next_node_id will be zero if
                      -- it doesnt exist in the tree (ie this is not an
                      -- embedded msg).
-                     child_nodes := tree_SearchForNode(msg_tree, msg_tree_ptr);
+                     child_nodes := tree_GetChildNodes(msg_tree, msg_tree_ptr);
                      for i in 0 to MAX_NODES_PER_LEVEL-1 loop
                        if tree_GetNodeData(msg_tree, child_nodes(i)).field_id = to_integer(unsigned(fieldNumber)) then
                          recv_msg <= '1';
@@ -175,6 +175,12 @@ begin
                if reset_i = '1' then
                  numActiveMsgs <= 0;
                else            
+               
+               for i in 0 to NUM_MSG_HIERARCHY-1 loop
+                  if (i >= numActiveMsgs) then
+                     message_id_o(i) <= NULL_MESSAGE;
+                  end if;
+               end loop;
 
                   if (state = LENGTH_DELIMITED_DECODE) then
                      if recv_msg = '1' then
@@ -193,23 +199,16 @@ begin
                         -- messages ending at the same time, the outer
                         -- most message takes priority with reference to 
                         -- messageUniqueId_o
-                        tree_ptr_var := tree_RewindNodePtr(tree_ptr_var);
                         if (delimitCountStack(i) = 1) then
                            messageLast_o    <= '1';
                            messageEndCount := messageEndCount + 1;
+                           tree_ptr_var := tree_RewindNodePtr(tree_ptr_var);
                         end if;
                      end if;
                   end loop;
 
                   numActiveMsgs <= numActiveMsgs + messageStartCount - messageEndCount;
                   msg_tree_ptr <= tree_ptr_var;
-
-
-                  for i in 0 to NUM_MSG_HIERARCHY-1 loop
-                     if (i > numActiveMsgs) then
-                        message_id_o(i) <= NULL_MESSAGE;
-                     end if;
-                  end loop;
 
                 end if;
 

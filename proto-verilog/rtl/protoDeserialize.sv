@@ -8,7 +8,8 @@ module protoDeserialize
   input    logic        protoStream_valid_i,
 
   output   logic        valid_o,
-  output   logic [4:0]  field_num_o, //proto_fieldNumber type
+  output   logic [7:0]  parameter_byte_sel_o,
+  output   logic [4:0]  fieldNumber_o, //proto_fieldNumber type
   output   logic [63:0] parameter_val_o
 
   input    logic        clk_i,
@@ -26,7 +27,6 @@ typedef logic [6:0] varint;
 typedef varint [7:0] varint_arr;
 varint_arr varint_reg;
 
-signal fieldNumber_reg       :  std_logic_vector(4 downto 0);
 signal varintCount           :  natural range 0 to 8;
 signal delimitCountStack     :  delimitLength_t;
 logic [7:0] delimitCount;
@@ -41,9 +41,10 @@ typedef enum {KEY_DECODE, VARINT_DECODE, LENGTH_DELIMITED_DECODE, DECODE_UNTIL_D
 state_t  state = IDLE;
 -- }}}
 
-   wireType    <= protostream_i(2 downto 0);
-   fieldNumber <= protostream_i(7 downto 3);
-   dataType    <= LUT_ROM(node_addr);
+   dataType      <= LUT_ROM(node_addr);
+   fieldNumber_o <= fieldNumber;
+   //wireType      <= protostream_i(2 downto 0);
+   //fieldNumber   <= protostream_i(7 downto 3);
 
    always_ff @(posedge clk_i)
    begin
@@ -67,8 +68,9 @@ state_t  state = IDLE;
 
            if (protoStream_valid_i) begin 
 
-             fieldNumber_reg <= fieldNumber;
-             field_exists <= tree_SearchChildNodes(tree, node_addr, fieldNumber))
+             field_exists  <= tree_SearchChildNodes(tree, node_addr, `SLICE_FIELD_NUM(protostream_i))
+             wireType      <= `SLICE_WIRE_TYPE(protostream_i);
+             fieldNumber   <= `SLICE_FIELD_NUM(protostream_i);
 
              case (wireType)
                `VARINT : begin
@@ -111,27 +113,30 @@ state_t  state = IDLE;
               end
 
               VARINT_DECODE : begin
-                if (packed_repeated == 1)
+                if (packed_repeated == 1) begin
                   delimitCount <= delimitCount - 1;
-                if (protostream_i(7) = 0) begin
+                end
+                if (protostream_i[7] = 0) begin
                   // end of decode
                   varint_reg   <= '0;
-                  varintCount <=  0;
+                  varint_count <=  0;
                   if (packed_repeated == 1) begin
                     if (delimitCount == 1) begin
                         packed_repeated <= '0';
                         state <= KEY_DECODE; 
                     end
-                    else
+                    else begin
                         // packed repeated field continues
                         state <= VARINT_DECODE;
+                    end
                   end
-                  else
-                     state  <= KEY_DECODE;
+                  else begin
+                    state  <= KEY_DECODE;
+                  end
                 end
                 else begin
-                  varintCount <= varintCount + 1;
-                  varint_reg(varintCount) <= protostream_i(6 downto 0);
+                  varint_count <= varint_count + 1;
+                  varint_reg[varint_count] <= protostream_i[6 downto 0];
                 end;
 
                DECODE_UNTIL_DELIMIT : begin
@@ -144,52 +149,40 @@ state_t  state = IDLE;
 
          // This is an asynchrnous process to control the output
          // data stream
-         process(protostream_i, state, FieldUniqueId, varint_reg, varintCount)
+         always_comb
          begin
-           //default case
-           data_o          <= '0;
-           fieldValid_o    <= 0;
-           fieldUniqueId_o <= std_logic_vector(to_unsigned(FieldUniqueId, 32)); 
-           delimit_last_o  <= 0;
 
-           case state is
+           //defaults
+           parameter_val_o <= '0;
 
-            when VARINT_DECODE =>
-               if (protostream_i(7) = '0') then
-                  -- end of decode
-                  for i in 0 to VARINT_NUM_BYTES_MAX-2 loop
-                     data_o((i*7)+6 downto (i*7)) <= varint_reg(i);
-                  end loop;
+           case (state) begin 
 
-                  if varintCount >= MAX_FIELD_BYTE_WIDTH then
-                     data_o((MAX_FIELD_BYTE_WIDTH * 8) - 1 downto (varintCount * 7)) <= 
-                       protostream_i((MAX_FIELD_BYTE_WIDTH * 8) - 1 - (varintCount * 7)  downto 0);
-                  else
-                  -- Set the input to be the current index of the VARINT
-                     data_o(((varintCount * 7) + 6) downto (varintCount * 7)) <= protostream_i(6 downto 0);
-                  end if;
+             `VARINT_DECODE : begin
+               for(int i=0; i<MAX_VARINT_BYTES; i++) begin
+                 parameter_val_o[(i*7)+7 -: 7] <= varint_reg[i]; 
+               end
+               parameter_val_o[(varint_count*7)+7 -: 7] <= protoStream_i;
+               valid_o <= !protoStream_i[7];
+               //TODO: The byte select needs to be dependent on the data
+               //type stored in ROM.
+               parameter_byte_sel_o <= 8'b00000001;
+             end
 
-                  fieldValid_o <= '1';
-               end if;
+             `DECODE_UNTIL_DELIMIT : begin
+               valid_o <= '1';
+               parameter_val_o(7 downto 0) <= protostream_i;
+             end
 
-            when DECODE_UNTIL_DELIMIT =>
-               fieldValid_o <= '1';
-               data_o(7 downto 0) <= protostream_i;
-               if delimitCount = 1 then
-                  delimit_last_o <= '1';
-               end if;
-
-            when OTHERS => 
-               --do nothing
-
-            end case;
+             default : begin 
+               //do nothing
+             end
+           endcase;
 
          end process;
 
-         -- This process keeps track of embedded msgs and determines when
-         -- to toggle messageLast_o
-
-         process(clk_i)
+         // This process keeps track of embedded msgs and determines when
+         // to toggle messageLast_o
+         always_ff @(posedge clk_i)
             variable messageEndCount : natural range 0 to NUM_MSG_HIERARCHY-1;
             variable messageStartCount : natural range 0 to 1;
          begin
@@ -218,10 +211,10 @@ state_t  state = IDLE;
                      if (numActiveMsgs > i) then
                         delimitCountStack(i) <=
                            delimitCountStack(i)-1;
-                        -- the end of a message. If there are multiple
-                        -- messages ending at the same time, the outer
-                        -- most message takes priority with reference to 
-                        -- messageUniqueId_o
+                        // the end of a message. If there are multiple
+                        // messages ending at the same time, the outer
+                        // most message takes priority with reference to 
+                        // messageUniqueId_o
                         if (delimitCountStack(i) = 1) then
                            messageLast_o    <= '1';
                            messageUniqueId_o <= std_logic_vector(to_unsigned(delimitUniqueIdStack(i),32));

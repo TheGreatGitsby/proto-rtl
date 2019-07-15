@@ -1,0 +1,3 @@
+[submodule "proto-verilog/rtl/submodules/tree-rtl"]
+	path = proto-verilog/rtl/submodules/tree-rtl
+	url = git@github.com:TheGreatGitsby/tree-rtl.git

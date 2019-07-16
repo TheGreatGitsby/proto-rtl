@@ -1,6 +1,6 @@
 import user_tree_pkg::*;
 import tree_pkg::*;
-import protobuf_types::*;
+import protobuf_pkg::*;
 
 module protoDeserialize
 (
@@ -20,29 +20,27 @@ module protoDeserialize
 const tree_t tree = tree_generateTree(user_tree_pkg::dependencies);
 logic [7:0]       node_addr;
 
-proto_wireType    wireType;
-proto_fieldNumber fieldNumber;
-proto_dataType    dataType;
-typedef logic [6:0] varint;
-typedef varint [7:0] varint_arr;
-varint_arr varint_reg;
+protobuf_pkg::proto_wireType      wireType;
+protobuf_pkg::proto_fieldNumber   fieldNumber;
+protobuf_pkg::proto_dataType      dataType;
+protobuf_pkg::proto_fieldMetaData fieldMetaData;
+user_tree_pkg::field_meta_data    msg_meta_data;
+logic [6:0] varint_reg [0:MAX_VARINT_BYTES-1];
+logic fieldMetaDataValid;
 
-signal varintCount           :  natural range 0 to 8;
-signal delimitCountStack     :  delimitLength_t;
-logic [7:0] delimitCount;
+logic [3:0] varint_count;
+logic [7:0] delimitCount;  //255 byte max?
+logic [7:0] delimitCountStack [0 : NUM_MSG_HIERARCHY-1];
 
+logic [7:0] numActiveMsgs;
 
-signal numActiveMsgs          :  natural := 0;
+logic packed_repeated;
 
-signal packed_repeated : std_logic;
-
-typedef enum {KEY_DECODE, VARINT_DECODE, LENGTH_DELIMITED_DECODE, DECODE_UNTIL_DELIMIT} state_t; 
-
-state_t  state = IDLE;
--- }}}
+protobuf_state_t  state = IDLE;
 
    dataType      <= LUT_ROM(node_addr);
    fieldNumber_o <= fieldNumber;
+   msg_meta_data <= GET_NODE_DATA(ROM_ProtoMetaData, node_addr); 
    //wireType      <= protostream_i(2 downto 0);
    //fieldNumber   <= protostream_i(7 downto 3);
 
@@ -66,13 +64,16 @@ state_t  state = IDLE;
 
          KEY_DECODE: begin
 
+           //default
+           fieldMetaDataValid <= 0;
+
            if (protoStream_valid_i) begin 
 
-             field_exists  <= tree_SearchChildNodes(tree, node_addr, `SLICE_FIELD_NUM(protostream_i))
-             wireType      <= `SLICE_WIRE_TYPE(protostream_i);
-             fieldNumber   <= `SLICE_FIELD_NUM(protostream_i);
+             wireType      <= SLICE_WIRE_TYPE(protostream_i);
+             fieldNumber   <= SLICE_FIELD_NUM(protostream_i);
+             fieldMetaDataValid <= GET_FIELD_META_DATA(fieldMetaData, msg_meta_data, SLICE_FIELD_NUM(protostream_i));
 
-             case (wireType)
+             case (SLICE_WIRE_TYPE(protostream_i))
                `VARINT : begin
                  varintCount <= 0;
                  state <= VARINT_DECODE;
@@ -89,7 +90,7 @@ state_t  state = IDLE;
                // here we need to decide if this is a length-delimited
                // type such as a string or repeated value.  OR if 
                // this is a message.
-               case (dataType)
+               case (GET_DATATYPE(fieldMetaData))
                  `EMBEDDED_MESSAGE : begin
                    state <= KEY_DECODE;
                  end
@@ -147,7 +148,7 @@ state_t  state = IDLE;
              end;
          end;
 
-         // This is an asynchrnous process to control the output
+         // This is an asynchronous process to control the output
          // data stream
          always_comb
          begin
@@ -183,53 +184,35 @@ state_t  state = IDLE;
          // This process keeps track of embedded msgs and determines when
          // to toggle messageLast_o
          always_ff @(posedge clk_i)
-            variable messageEndCount : natural range 0 to NUM_MSG_HIERARCHY-1;
-            variable messageStartCount : natural range 0 to 1;
-         begin
-            if rising_edge(clk_i) then
 
-              messageLast_o <= '0';
-              messageStartCount := 0;
-              messageEndCount := 0;
-              messageUniqueId_o <= (others => '0');
-              if numActiveMsgs > 0 then
-                messageUniqueId_o <= std_logic_vector(to_unsigned(delimitUniqueIdStack(numActiveMsgs-1),32));
-             end if;
+           automatic int messageEndCount;
+           automatic int messageStartCount;
 
-               if reset_i = '1' then
-                 numActiveMsgs <= 0;
-               else            
-                  if (state = LENGTH_DELIMITED_DECODE) then
-                     if dataType = EMBEDDED_MESSAGE then
-                       messageStartCount := 1;
-                       delimitCountStack(numActiveMsgs) <= to_integer(unsigned(protoStream_i))-1;
-                       delimitUniqueIdStack(numActiveMsgs) <= FieldUniqueId;
-                     end if;
-                  end if;
+           messageStartCount = 0;
+           messageEndCount   = 0;
 
-                  for i in NUM_MSG_HIERARCHY-1 downto 0 loop
-                     if (numActiveMsgs > i) then
-                        delimitCountStack(i) <=
-                           delimitCountStack(i)-1;
-                        // the end of a message. If there are multiple
-                        // messages ending at the same time, the outer
-                        // most message takes priority with reference to 
-                        // messageUniqueId_o
-                        if (delimitCountStack(i) = 1) then
-                           messageLast_o    <= '1';
-                           messageUniqueId_o <= std_logic_vector(to_unsigned(delimitUniqueIdStack(i),32));
-                           messageEndCount := messageEndCount + 1;
-                        end if;
-                     end if;
-                  end loop;
-
-                  numActiveMsgs <= numActiveMsgs + messageStartCount - messageEndCount;
-
-                end if;
-
-             end if;
-      end process;
-         -- }}}
-      end arch;
-      --}}}
+           if (reset_i == '1')
+             numActiveMsgs <= 0;
+           else begin            
+             if (state == LENGTH_DELIMITED_DECODE) begin
+               if (dataType == EMBEDDED_MESSAGE) begin
+                 messageStartCount = 1;
+                 delimitCountStack[numActiveMsgs] <= protoStream_i - 1;
+                 message_exists  <= tree_SearchChildNodes(tree, node_addr, fieldNumber);
+               end
+             end
+             for (int i=user_tree_pkg::NUM_MSG_HIERARCHY-1; i>=0; i--) begin
+               if (numActiveMsgs > i) begin
+                 delimitCountStack[i] <= delimitCountStack(i)-1;
+                 if (delimitCountStack[i] == 1) begin
+                   // the end of a message.
+                   messageEndCount := messageEndCount + 1;
+                   node_addr = SLICE_PARENT_NODE_ADDR(tree[node_addr]);
+                 end;
+               end;
+             end;
+             numActiveMsgs <= numActiveMsgs + messageStartCount - messageEndCount;
+           end;
+         end;
+       end;
 

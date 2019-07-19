@@ -4,6 +4,9 @@ package protobuf_pkg;
 
    typedef logic [2:0] proto_wireType;
    typedef logic [4:0] proto_fieldNumber;
+   parameter wiretype_varint = 0;
+   parameter wiretype_64bit  = 1;
+   parameter wiretype_lengthDelimited  = 2;
 
    function logic [2:0] SLICE_WIRE_TYPE(input logic [7:0] keyValue);
      return keyValue[2:0];
@@ -27,8 +30,16 @@ package protobuf_pkg;
      return 0;
    endfunction;
    
-   function logic [1:0] GET_DATA_TYPE(input user_tree_pkg::proto_fieldMetaData fieldMetaData);
-     return fieldMetaData[user_tree_pkg::IDENTIFIER_SIZE+2-1 : user_tree_pkg::IDENTIFIER_SIZE];
+   function logic [user_tree_pkg::DATA_TYPE_SIZE-1:0] GET_DATA_TYPE(input user_tree_pkg::proto_fieldMetaData fieldMetaData);
+     return fieldMetaData[user_tree_pkg::IDENTIFIER_SIZE+user_tree_pkg::DATA_TYPE_SIZE-1 -: user_tree_pkg::DATA_TYPE_SIZE];
+   endfunction;
+
+   function logic IS_EMBEDDED_MSG(input user_tree_pkg::proto_fieldMetaData fieldMetaData);
+     return fieldMetaData[user_tree_pkg::IDENTIFIER_SIZE+user_tree_pkg::DATA_TYPE_SIZE];
+   endfunction;
+
+   function logic IS_VARINT_ENCODED(input user_tree_pkg::proto_fieldMetaData fieldMetaData);
+     return GET_DATATYPE(fieldMetaData)[2];
    endfunction;
 
 endpackage

@@ -36,7 +36,11 @@ logic [7:0] numActiveMsgs;
 
 logic packed_repeated;
 
-protobuf_state_t  state = IDLE;
+typedef enum {
+  KEY_DECODE, LENGTH_DELIMITED_DECODE, VARINT_DECODE, DECODE_UNTIL_DELIMIT
+} protobuf_state_t;
+
+protobuf_state_t  state = KEY_DECODE;
 
    dataType      <= LUT_ROM(node_addr);
    fieldNumber_o <= fieldNumber;
@@ -74,46 +78,37 @@ protobuf_state_t  state = IDLE;
              fieldMetaDataValid <= GET_FIELD_META_DATA(fieldMetaData, msg_meta_data, SLICE_FIELD_NUM(protostream_i));
 
              case (SLICE_WIRE_TYPE(protostream_i))
-               `VARINT : begin
+               protobuf_pkg::wiretype_varint : begin
                  varintCount <= 0;
                  state <= VARINT_DECODE;
                end
-               `LENGTH_DELIMITED : begin 
+               protobuf_pkg::wiretype_lengthDelimited : begin 
                  // could be an embedded message or a
                  // packed repeated field.
                  state <= LENGTH_DELIMITED_DECODE;
                end
+               //TODO: add others
               endcase;
             end
 
             LENGTH_DELIMITED_DECODE : begin
-               // here we need to decide if this is a length-delimited
-               // type such as a string or repeated value.  OR if 
-               // this is a message.
-               case (GET_DATATYPE(fieldMetaData))
-                 `EMBEDDED_MESSAGE : begin
-                   state <= KEY_DECODE;
-                 end
-                 `STRING_t : begin
-                   delimitCount <= protoStream_i;
-                   state        <= DECODE_UNTIL_DELIMIT;
-                   // These stats are packed-repeated since a non-LENGTH_DELIMITED type
-                   // came in.
-                 end
-                 `VARINT : begin
-                   packed_repeated <= 1;
-                   delimitCount    <= protoStream_i;
-                   state           <= VARINT_DECODE;
-                 end
-                 default : begin
-                   // more cases to come...
-                   delimitCount    <= protoStream_i;
-                   state           <= DECODE_UNTIL_DELIMIT;
-                 end
-                endcase;
+              // here we need to decide if this is a length-delimited
+              // type such as a string or repeated value.  OR if 
+              // this is a message.
+              if (protobuf_pkg::IS_EMBEDDED_MSG(fieldMetaData))
+                state <= KEY_DECODE;
+              else begin
+                delimitCount    <= protoStream_i;
+                if (protobuf_pkg::GET_DATATYPE(fieldMetaData) != 0)
+                  packed_repeated <= 1;
+                if(protobuf_pkg::IS_VARINT_ENCODED(fieldMetaData))
+                  state  <= VARINT_DECODE;
+                else
+                  state  <= DECODE_UNTIL_DELIMIT;
               end
+            end
 
-              VARINT_DECODE : begin
+            VARINT_DECODE : begin
                 if (packed_repeated == 1) begin
                   delimitCount <= delimitCount - 1;
                 end
@@ -152,13 +147,12 @@ protobuf_state_t  state = IDLE;
          // data stream
          always_comb
          begin
-
            //defaults
            parameter_val_o <= '0;
 
            case (state) begin 
 
-             `VARINT_DECODE : begin
+             VARINT_DECODE : begin
                for(int i=0; i<MAX_VARINT_BYTES; i++) begin
                  parameter_val_o[(i*7)+7 -: 7] <= varint_reg[i]; 
                end
@@ -169,7 +163,7 @@ protobuf_state_t  state = IDLE;
                parameter_byte_sel_o <= 8'b00000001;
              end
 
-             `DECODE_UNTIL_DELIMIT : begin
+             DECODE_UNTIL_DELIMIT : begin
                valid_o <= '1';
                parameter_val_o(7 downto 0) <= protostream_i;
              end
@@ -178,8 +172,7 @@ protobuf_state_t  state = IDLE;
                //do nothing
              end
            endcase;
-
-         end process;
+         end;
 
          // This process keeps track of embedded msgs and determines when
          // to toggle messageLast_o
@@ -195,7 +188,7 @@ protobuf_state_t  state = IDLE;
              numActiveMsgs <= 0;
            else begin            
              if (state == LENGTH_DELIMITED_DECODE) begin
-               if (dataType == EMBEDDED_MESSAGE) begin
+               if (protobuf_pkg::IS_EMBEDDED_MSG(fieldMetaData)) begin
                  messageStartCount = 1;
                  delimitCountStack[numActiveMsgs] <= protoStream_i - 1;
                  message_exists  <= tree_SearchChildNodes(tree, node_addr, fieldNumber);
@@ -206,7 +199,7 @@ protobuf_state_t  state = IDLE;
                  delimitCountStack[i] <= delimitCountStack(i)-1;
                  if (delimitCountStack[i] == 1) begin
                    // the end of a message.
-                   messageEndCount := messageEndCount + 1;
+                   messageEndCount = messageEndCount + 1;
                    node_addr = SLICE_PARENT_NODE_ADDR(tree[node_addr]);
                  end;
                end;

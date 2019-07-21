@@ -3,7 +3,7 @@ package user_tree_pkg;
    parameter NUM_MSG_HIERARCHY = 3;
    parameter NUM_MSGS = 3;
    parameter MAX_NODES_PER_LEVEL = 1;
-   parameter IDENTIFIER_SIZE = 8;
+   parameter IDENTIFIER_SIZE = 4; //TODO: this is a varint and can be larger
    
    // This is the address that logic will
    // receive and uses to map to node_data.
@@ -11,9 +11,9 @@ package user_tree_pkg;
    typedef identifier [NUM_MSG_HIERARCHY-1:0] dependency;
    typedef dependency [NUM_MSGS-1:0] dependencies_t;
 
-   const dependency addressbook_dependency = {8'h00, 8'h00, 8'hAA};
-   const dependency person_dependency      = {8'h00, 8'hBB, 8'hAA};
-   const dependency phonenumber_dependency = {8'hCC, 8'hBB, 8'hAA};
+   const dependency addressbook_dependency = {4'h0, 4'h0, 4'hA};
+   const dependency person_dependency      = {4'h0, 4'hB, 4'hA};
+   const dependency phonenumber_dependency = {4'hC, 4'hB, 4'hA};
 
    const dependencies_t dependencies  = {phonenumber_dependency, person_dependency, addressbook_dependency};
 
@@ -28,8 +28,12 @@ package user_tree_pkg;
    // bit 1 - 64b, 
    // bit 2 - varint, 
    parameter DATA_TYPE_SIZE = 3;
+   parameter STRUCT_BYTE_OFFSET_SIZE = 8; //TODO Calculate this
+   parameter REQUIRED_BIT = 1;
+   parameter REPEATED_BIT = 1;
+   parameter EMBEDDED_MSB_BIT = 1;
 
-   parameter FIELD_META_DATA_SIZE = IDENTIFIER_SIZE + DATA_TYPE_SIZE + STRUCT_BYTE_OFFSET_SIZE + REQUIRED_BIT + REPEATED_BIT;
+   parameter FIELD_META_DATA_SIZE = IDENTIFIER_SIZE + DATA_TYPE_SIZE + EMBEDDED_MSB_BIT + STRUCT_BYTE_OFFSET_SIZE + REQUIRED_BIT + REPEATED_BIT;
 
    typedef logic[FIELD_META_DATA_SIZE-1 : 0] proto_fieldMetaData;
    // Field Meta Data
@@ -39,22 +43,22 @@ package user_tree_pkg;
    typedef logic[(MAX_FIELDS_PER_MSG * FIELD_META_DATA_SIZE) - 1 : 0] node_data; //this would be msg/var_type/etc
 
    // Address Book Message
-   const proto_fieldMetaData people = {1'b0, 1'b1, 8'h00, 1'b1, 3'b000, 8'h01};
+   const proto_fieldMetaData people = {1'b0, 1'b1, 8'h00, 1'b1, 3'b000, 4'h1};
    const node_data AddressBook_msg = {'0, people};
 
    // Person Message
-   const field_meta_data name   = {1'b0, 1'b1, 8'h04, 1'b0, 3'b000, 8'h01};
-   const field_meta_data id     = {1'b0, 1'b1, 8'h08, 1'b0, 3'b101, 8'h02};
-   const field_meta_data email  = {1'b0, 1'b0, 8'h0C, 1'b0, 3'b000, 8'h03};
-   const field_meta_data phones = {1'b1, 1'b0, 8'h10, 1'b1, 3'b000, 8'h04};
-   const node_data Person_msg   = {name, id, email, phones};
+   const proto_fieldMetaData name   = {1'b0, 1'b1, 8'h04, 1'b0, 3'b000, 4'h1};
+   const proto_fieldMetaData id     = {1'b0, 1'b1, 8'h08, 1'b0, 3'b101, 4'h2};
+   const proto_fieldMetaData email  = {1'b0, 1'b0, 8'h0C, 1'b0, 3'b000, 4'h3};
+   const proto_fieldMetaData phones = {1'b1, 1'b0, 8'h10, 1'b1, 3'b000, 4'h4};
+   const proto_fieldMetaData Person_msg   = {name, id, email, phones};
 
    // Phone Number Message
-   const field_meta_data PhoneNumber_number   = {1'b0, 1'b1, 8'h14, 1'b0, 3'b000, 8'h01};
-   const field_meta_data PhoneNumber_type     = {1'b0, 1'b0, 8'h18, 1'b0, 3'b001, 8'h02};
+   const proto_fieldMetaData PhoneNumber_number   = {1'b0, 1'b1, 8'h14, 1'b0, 3'b000, 4'h1};
+   const proto_fieldMetaData PhoneNumber_type     = {1'b0, 1'b0, 8'h18, 1'b0, 3'b001, 4'h2};
    const node_data PhoneNumber_msg = {'0, PhoneNumber_type, PhoneNumber_number};
 
    typedef node_data [NUM_MSGS-1:0] node_ROM;
-   const ROM_ProtoMetaData = {PhoneNumber_msg, Person_msg, AddressBook_msg};
+   const node_ROM ROM_ProtoMetaData = {PhoneNumber_msg, Person_msg, AddressBook_msg};
 
 endpackage

@@ -14,8 +14,8 @@ package protobuf_pkg;
      return keyValue[2:0];
    endfunction;
 
-   function logic [2:0] SLICE_FIELD_NUM(input logic [7:0] keyValue);
-     return keyValue[7:3];
+   function logic [3:0] SLICE_FIELD_NUM(input logic [7:0] keyValue);
+     return keyValue[6:3];
    endfunction;
 
    function user_tree_pkg::node_data GET_NODE_DATA(input user_tree_pkg::node_ROM node_meta, input logic [7:0] node_addr);

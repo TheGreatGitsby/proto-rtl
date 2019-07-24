@@ -9,7 +9,7 @@ module protoDeserialize
 
   output   logic        valid_o,
   output   logic [7:0]  parameter_byte_sel_o,
-  output   logic [4:0]  fieldNumber_o, //proto_fieldNumber type
+  output   logic [3:0]  fieldNumber_o, //proto_fieldNumber type
   output   logic [63:0] parameter_val_o,
 
   input    logic        clk_i,
@@ -30,9 +30,9 @@ logic fieldMetaDataValid;
 
 logic [3:0] varint_count;
 logic [7:0] delimitCount;  //255 byte max?
-logic [7:0] delimitCountStack [0 : NUM_MSG_HIERARCHY-1];
+logic [7:0] delimitCountStack [0 : user_tree_pkg::NUM_MSG_HIERARCHY-1];
 
-logic [7:0] numActiveMsgs;
+logic [$clog2(NUM_MSG_HIERARCHY)-1:0] numActiveMsgs;
 
 logic packed_repeated;
 
@@ -51,7 +51,7 @@ always_ff @(posedge clk_i)
 begin
   if(reset_i == 1) begin
     state           <= KEY_DECODE;
-    varint_reg      <= '0;
+    varint_reg      <= '{default:0};
     delimitCount    <= 0;
     packed_repeated <= 0;
   end
@@ -116,7 +116,7 @@ begin
           delimitCount <= delimitCount - 1;
         if (protoStream_i[7] == 0) begin
           // end of decode
-          varint_reg   <= '0;
+          varint_reg   <= '{default:0};
           varint_count <=  0;
           if (packed_repeated == 1) begin
             if (delimitCount == 1) begin
@@ -160,8 +160,8 @@ begin
           for(int i=0; i<protobuf_pkg::MAX_VARINT_BYTES; i++) begin
             parameter_val_o[(i*7)+7 -: 7] = varint_reg[i]; 
           end
-          parameter_val_o[(varint_count*7)+7 -: 7] = protoStream_i;
-          valid_o <= !protoStream_i[7];
+          parameter_val_o[(varint_count*7)+7 -: 7] = protoStream_i[6:0];
+          valid_o = !protoStream_i[7];
           //TODO: The byte select needs to be dependent on the data
           //type stored in ROM.
           parameter_byte_sel_o = 8'b00000001;
@@ -183,8 +183,8 @@ begin
   always_ff @(posedge clk_i)
   begin
 
-    int messageEndCount = 0;
-    int messageStartCount = 0;
+    logic [$clog2(NUM_MSG_HIERARCHY)-1:0] messageEndCount;
+    logic [$clog2(NUM_MSG_HIERARCHY)-1:0] messageStartCount = 0;
 
     messageStartCount = 0;
     messageEndCount   = 0;
@@ -201,7 +201,7 @@ begin
         end
       end
       for (int i=user_tree_pkg::NUM_MSG_HIERARCHY-1; i>=0; i--) begin
-        if (numActiveMsgs > i) begin
+        if (numActiveMsgs > i[$bits(numActiveMsgs)-1:0]) begin
           delimitCountStack[i] <= delimitCountStack[i]-1;
           if (delimitCountStack[i] == 1) begin
             // the end of a message.

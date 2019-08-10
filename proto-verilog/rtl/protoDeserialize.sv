@@ -7,10 +7,10 @@ module protoDeserialize
   input    logic [7:0]  protoStream_i,
   input    logic        protoStream_valid_i,
 
-  output   logic        valid_o,
-  output   logic [7:0]  parameter_byte_sel_o,
-  output   logic [3:0]  fieldNumber_o, //proto_fieldNumber type
-  output   logic [63:0] parameter_val_o,
+  output   logic        wr_en_o,
+  output   logic [7:0]  byte_sel_o,
+  output   logic [7:0]  addr_o,
+  output   logic [64:0] data_o,
 
   input    logic        clk_i,
   input    logic        reset_i
@@ -28,13 +28,17 @@ user_tree_pkg::node_data    msg_meta_data;
 logic [6:0] varint_reg [0:protobuf_pkg::MAX_VARINT_BYTES-1];
 logic fieldMetaDataValid;
 
-logic [3:0] varint_count;
-logic [7:0] delimitCount;  //255 byte max?
-logic [7:0] delimitCountStack [0 : user_tree_pkg::NUM_MSG_HIERARCHY-1];
+logic [3:0]  varint_count;
+logic [7:0]  delimitCount;  //255 byte max?
+logic [7:0]  delimitCountStack [0 : user_tree_pkg::NUM_MSG_HIERARCHY-1];
+logic [31:0] baseAddressStack  [0 : user_tree_pkg::NUM_MSG_HIERARCHY-1];
+logic [31:0] write_address_tail;
 
 logic [$clog2(NUM_MSG_HIERARCHY)-1:0] numActiveMsgs;
 
 logic packed_repeated;
+//TODO: num_values needs a max number of repeated values (not just 32b)
+logic [31:0] num_values;
 
 typedef enum {
   KEY_DECODE, LENGTH_DELIMITED_DECODE, VARINT_DECODE, DECODE_UNTIL_DELIMIT
@@ -42,7 +46,6 @@ typedef enum {
 
 protobuf_state_t  state;
 
-assign fieldNumber_o = fieldNumber;
 assign msg_meta_data = user_tree_pkg::ROM_ProtoMetaData[node_addr]; 
 //wireType      <= protostream_i(2 downto 0);
 //fieldNumber   <= protostream_i(7 downto 3);
@@ -68,12 +71,13 @@ begin
         
         //default
         fieldMetaDataValid <= 0;
+        packed_repeated <= 0;
 
         if (protoStream_valid_i) begin 
 
           wireType      <= protobuf_pkg::SLICE_WIRE_TYPE(protoStream_i);
           fieldNumber   <= protobuf_pkg::SLICE_FIELD_NUM(protoStream_i);
-          fieldMetaDataValid <= protobuf_pkg::GET_FIELD_META_DATA(fieldMetaData, msg_meta_data, protobuf_pkg::SLICE_FIELD_NUM(protoStream_i));
+          fieldMetaDataValid <= protobuf_pkg::FIND_FIELD_META_DATA(fieldMetaData, msg_meta_data, protobuf_pkg::SLICE_FIELD_NUM(protoStream_i));
 
           case (protobuf_pkg::SLICE_WIRE_TYPE(protoStream_i))
 
@@ -98,12 +102,18 @@ begin
         // here we need to decide if this is a length-delimited
         // type such as a string or repeated value.  OR if 
         // this is a message.
-        if (protobuf_pkg::IS_EMBEDDED_MSG(fieldMetaData))
+        // TODO: add if(field_metadata_valid)
+        if (protobuf_pkg::IS_EMBEDDED_MSG(fieldMetaData)) begin
           state <= KEY_DECODE;
+          //update tail pointer for new message
+          write_address_tail <= write_address_tail + protobuf_pkg::GET_MSG_SIZE(fieldMetaData); 
+        end
         else begin
           delimitCount    <= protoStream_i;
-          if (protobuf_pkg::GET_DATA_TYPE(fieldMetaData) != 0)
+          if (protobuf_pkg::GET_DATA_TYPE(fieldMetaData) != 0) begin
             packed_repeated <= 1;
+            num_values <= '0;
+          end
           if(protobuf_pkg::IS_VARINT_ENCODED(fieldMetaData))
             state  <= VARINT_DECODE;
           else
@@ -114,18 +124,17 @@ begin
       VARINT_DECODE : begin
         if (packed_repeated == 1)
           delimitCount <= delimitCount - 1;
-        if (protoStream_i[7] == 0) begin
+        if (protoStream_i[7] == 1'b0) begin
           // end of decode
           varint_reg   <= '{default:0};
           varint_count <=  0;
+          state <= KEY_DECODE; 
           if (packed_repeated == 1) begin
-            if (delimitCount == 1) begin
-              packed_repeated <= 0;
-              state <= KEY_DECODE; 
-            end
-            else begin
-            // packed repeated field continues
-            state <= VARINT_DECODE;
+            num_values <= num_values + 1;
+            if (delimitCount != 1) begin
+              // packed repeated field continues
+              state <= VARINT_DECODE;
+              write_address_tail <= write_address_tail + protobuf_pkg::GET_BYTE_SIZE(fieldMetaData); 
             end
           end
         end
@@ -137,6 +146,7 @@ begin
 
       DECODE_UNTIL_DELIMIT : begin
         delimitCount <= delimitCount - 1;
+        write_address_tail <= write_address_tail + 1;
         if (delimitCount == 1)
           state <= KEY_DECODE; 
       end
@@ -146,30 +156,63 @@ begin
       end
     end
 
-    // This is an asynchronous process to control the output
-    // data stream
+    // output data stream control
     always_comb
     begin
+
       //defaults
-      parameter_val_o = '0;
-      valid_o = 0;
+      data_o     <= '0;
+      wr_en_o    <= 0;
+      byte_sel_o <= '0;
+      addr_o     <= '0;
 
       case (state)
 
+        KEY_DECODE: begin
+          //here we write the number of instances of a repeated
+          //type or a varint that was previously written.
+          if(packed_repeated) begin
+            wr_en_o     <= 1;
+            data_o[31 : 0] <= num_values;
+            byte_sel_o    <= 8'b00001111;
+            addr_o   <= protobuf_pkg::GET_OFFSET(fieldMetaData) - 4 + baseAddressStack[numActiveMsgs];
+          end
+        end
+
+        LENGTH_DELIMITED_DECODE : begin
+          //here we write the pointer in the struct to either this 
+          //embedded message or this array/repeated value
+          wr_en_o     <= 1;
+          data_o[31 : 0] <= write_address_tail;
+          byte_sel_o    <= 8'b00001111;
+          addr_o   <= protobuf_pkg::GET_OFFSET(fieldMetaData) + baseAddressStack[numActiveMsgs];
+        end
+
         VARINT_DECODE : begin
           for(int i=0; i<protobuf_pkg::MAX_VARINT_BYTES; i++) begin
-            parameter_val_o[(i*7)+7 -: 7] = varint_reg[i]; 
+            data_o[(i*7)+7 -: 7] <= varint_reg[i]; 
           end
-          parameter_val_o[(varint_count*7)+7 -: 7] = protoStream_i[6:0];
-          valid_o = !protoStream_i[7];
-          //TODO: The byte select needs to be dependent on the data
-          //type stored in ROM.
-          parameter_byte_sel_o = 8'b00000001;
+          data_o[(varint_count*7)+7 -: 7] <= protoStream_i[6:0];
+          if (!protoStream_i[7]) begin
+            wr_en_o <= 1;
+          end
+          for(int i=0; i<8; i++) begin
+            if (i < protobuf_pkg::GET_BYTE_SIZE(fieldMetaData))
+              byte_sel_o[i] <= 1;
+            else
+              byte_sel_o[i] <= 0;
+          end
+          if (packed_repeated)
+            addr_o     <= write_address_tail;
+          else
+            addr_o     <= protobuf_pkg::GET_OFFSET(fieldMetaData) + baseAddressStack[numActiveMsgs];
         end
 
         DECODE_UNTIL_DELIMIT : begin
-          valid_o = 1;
-          parameter_val_o[7:0] = protoStream_i;
+          wr_en_o <= 1;
+          data_o[7:0] <= protoStream_i;
+          byte_sel_o <= 8'b00000001; //1 byte
+          addr_o     <= write_address_tail;
         end
 
         default : begin 
@@ -178,8 +221,7 @@ begin
     endcase;
   end;
 
-  // This process keeps track of embedded msgs and determines when
-  // to toggle messageLast_o
+  // This process keeps track of embedded msgs
   always_ff @(posedge clk_i)
   begin
 
@@ -189,15 +231,18 @@ begin
     messageStartCount = 0;
     messageEndCount   = 0;
 
-    if (reset_i == 1)
+    if (reset_i == 1) begin
       numActiveMsgs <= 0;
+      baseAddressStack <= '0;
+    end
     else begin            
       if (state == LENGTH_DELIMITED_DECODE) begin
         if (protobuf_pkg::IS_EMBEDDED_MSG(fieldMetaData)) begin
           messageStartCount = 1;
+          baseAddressStack[numActiveMsgs]  <= write_address_tail;
           delimitCountStack[numActiveMsgs] <= protoStream_i - 1;
           //TODO: handle the case when a message doesnt exist
-          message_exists  <= tree_SearchChildNodes(tree, node_addr, fieldNumber);
+          message_exists  <= tree_pkg::tree_SearchChildNodes(tree, node_addr, fieldNumber);
         end
       end
       for (int i=user_tree_pkg::NUM_MSG_HIERARCHY-1; i>=0; i--) begin

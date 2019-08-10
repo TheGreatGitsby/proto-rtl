@@ -22,10 +22,24 @@ package protobuf_pkg;
      return node_meta[node_addr];
    endfunction;
 
-   function logic GET_FIELD_META_DATA(inout user_tree_pkg::proto_fieldMetaData fieldMetaData, input user_tree_pkg::node_data cur_msg_data, input proto_fieldNumber field_num);
-     for(int i=0; i<user_tree_pkg::MAX_FIELDS_PER_MSG-1; i++) begin
-       if (cur_msg_data[(i*user_tree_pkg::FIELD_META_DATA_SIZE)+user_tree_pkg::FIELD_META_DATA_SIZE-1 -: user_tree_pkg::IDENTIFIER_SIZE] == field_num) begin
-         fieldMetaData = cur_msg_data[(i*user_tree_pkg::FIELD_META_DATA_SIZE)+user_tree_pkg::FIELD_META_DATA_SIZE-1 -: user_tree_pkg::FIELD_META_DATA_SIZE];
+   function user_tree_pkg::msg_size GET_MSG_SIZE(input user_tree_pkg::node_data msg_meta_data);
+     return msg_meta_data[user_tree_pkg::NODE_DATA_SIZE-1 -: user_tree_pkg::MAX_MSG_SIZE];
+   endfunction;
+
+   function user_tree_pkg::proto_fieldMetaData GET_FIELD_META_DATA(input user_tree_pkg::node_data msg_meta_data, input int idx);
+     return msg_meta_data[(idx*user_tree_pkg::FIELD_META_DATA_SIZE)+user_tree_pkg::FIELD_META_DATA_SIZE-1 -: user_tree_pkg::FIELD_META_DATA_SIZE];
+   endfunction;
+
+   function logic [user_tree_pkg::IDENTIFIER_SIZE-1:0] GET_FIELD_NUM(input user_tree_pkg::node_data msg_meta_data, input int idx);
+     user_tree_pkg::proto_fieldMetaData meta = GET_FIELD_META_DATA(msg_meta_data, idx);
+     return meta[user_tree_pkg::IDENTIFIER_SIZE-1 : 0];
+   endfunction;
+
+
+   function logic FIND_FIELD_META_DATA(inout user_tree_pkg::proto_fieldMetaData fieldMetaData, input user_tree_pkg::node_data cur_msg_data, input proto_fieldNumber field_num);
+     for(int i=0; i<user_tree_pkg::MAX_FIELDS_PER_MSG; i++) begin
+       if (GET_FIELD_NUM(cur_msg_data, i) == field_num) begin
+         fieldMetaData = GET_FIELD_META_DATA(cur_msg_data, i);
          return 1;
        end
      end
@@ -36,6 +50,10 @@ package protobuf_pkg;
      return fieldMetaData[user_tree_pkg::IDENTIFIER_SIZE+user_tree_pkg::DATA_TYPE_SIZE-1 -: user_tree_pkg::DATA_TYPE_SIZE];
    endfunction;
 
+   function logic [user_tree_pkg::STRUCT_BYTE_OFFSET_SIZE-1:0] GET_OFFSET(input user_tree_pkg::proto_fieldMetaData fieldMetaData);
+     return fieldMetaData[user_tree_pkg::IDENTIFIER_SIZE+user_tree_pkg::DATA_TYPE_SIZE+user_tree_pkg::EMBEDDED_MSB_BIT+user_tree_pkg::STRUCT_BYTE_OFFSET_SIZE-1 -: user_tree_pkg::STRUCT_BYTE_OFFSET_SIZE];
+   endfunction;
+
    function logic IS_EMBEDDED_MSG(input user_tree_pkg::proto_fieldMetaData fieldMetaData);
      return fieldMetaData[user_tree_pkg::IDENTIFIER_SIZE+user_tree_pkg::DATA_TYPE_SIZE];
    endfunction;
@@ -44,6 +62,15 @@ package protobuf_pkg;
      logic [user_tree_pkg::DATA_TYPE_SIZE-1:0] data_type;
      data_type = GET_DATA_TYPE(fieldMetaData);
      return data_type[2];
+   endfunction;
+
+   function int GET_BYTE_SIZE(input user_tree_pkg::proto_fieldMetaData fieldMetaData);
+     logic [user_tree_pkg::DATA_TYPE_SIZE-1:0] data_type;
+     data_type = GET_DATA_TYPE(fieldMetaData);
+     if (data_type[0]) 
+       return 4; //32b
+     else
+       return 8; //64b
    endfunction;
 
 endpackage

@@ -24,9 +24,9 @@ int main(int argc, char **argv)
   person_1.id = 10;
   person_1.n_phones = 0;
   Tutorial__Person person_2 = TUTORIAL__PERSON__INIT;
-  person_1.name = "Peter";
-  person_1.id = 20;
-  person_1.n_phones = 0;
+  person_2.name = "Peter";
+  person_2.id = 20;
+  person_2.n_phones = 0;
 
   _Tutorial__AddressBook msg = TUTORIAL__ADDRESS_BOOK__INIT; 
   msg.n_people = 2;
@@ -52,7 +52,7 @@ int main(int argc, char **argv)
       tb->protoStream_valid_i = 0;
       tb->protoStream_i = 0;
 
-      if (edge_cnt >= 5)
+      if ((edge_cnt >= 5) && (byte_count < len))
       {
          tb->protoStream_valid_i = 1;
          tb->protoStream_i = ((uint8_t*)buf)[byte_count++];

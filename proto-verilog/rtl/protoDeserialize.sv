@@ -6,10 +6,12 @@ module protoDeserialize
 (
   input    logic [7:0]  protoStream_i,
   input    logic        protoStream_valid_i,
+  input    logic [31:0] dest_base_addr,
 
   output   logic        wr_en_o,
   output   logic [7:0]  byte_sel_o,
-  output   logic [7:0]  addr_o,
+  
+  output   logic [user_tree_pkg::ADDRESS_SIZE-1:0]  addr_o,
   output   logic [64:0] data_o,
 
   input    logic        clk_i,
@@ -31,8 +33,8 @@ logic fieldMetaDataValid;
 logic [3:0]  varint_count;
 logic [7:0]  delimitCount;  //255 byte max?
 logic [7:0]  delimitCountStack [0 : user_tree_pkg::NUM_MSG_HIERARCHY-1];
-logic [31:0] baseAddressStack  [0 : user_tree_pkg::NUM_MSG_HIERARCHY-1];
-logic [31:0] write_address_tail;
+logic [user_tree_pkg::ADDRESS_SIZE-1:0] baseAddressStack  [0 : user_tree_pkg::NUM_MSG_HIERARCHY-1];
+logic [user_tree_pkg::ADDRESS_SIZE-1:0] write_address_tail;
 
 logic [$clog2(NUM_MSG_HIERARCHY)-1:0] numActiveMsgs;
 
@@ -73,6 +75,11 @@ begin
         fieldMetaDataValid <= 0;
         packed_repeated <= 0;
 
+        //update tail_ptr if this is the start of a new msg
+        if(message_exists)
+          write_address_tail <= write_address_tail + user_tree_pkg::ADDRESS_SIZE'(protobuf_pkg::GET_MSG_SIZE(msg_meta_data)); 
+
+
         if (protoStream_valid_i) begin 
 
           wireType      <= protobuf_pkg::SLICE_WIRE_TYPE(protoStream_i);
@@ -105,8 +112,6 @@ begin
         // TODO: add if(field_metadata_valid)
         if (protobuf_pkg::IS_EMBEDDED_MSG(fieldMetaData)) begin
           state <= KEY_DECODE;
-          //update tail pointer for new message
-          write_address_tail <= write_address_tail + protobuf_pkg::GET_MSG_SIZE(fieldMetaData); 
         end
         else begin
           delimitCount    <= protoStream_i;
@@ -134,7 +139,7 @@ begin
             if (delimitCount != 1) begin
               // packed repeated field continues
               state <= VARINT_DECODE;
-              write_address_tail <= write_address_tail + protobuf_pkg::GET_BYTE_SIZE(fieldMetaData); 
+              write_address_tail <= write_address_tail + user_tree_pkg::ADDRESS_SIZE'(protobuf_pkg::GET_BYTE_SIZE(fieldMetaData)); 
             end
           end
         end
@@ -161,10 +166,10 @@ begin
     begin
 
       //defaults
-      data_o     <= '0;
-      wr_en_o    <= 0;
-      byte_sel_o <= '0;
-      addr_o     <= '0;
+      data_o     = '0;
+      wr_en_o    = 0;
+      byte_sel_o = '0;
+      addr_o     = '0;
 
       case (state)
 
@@ -172,47 +177,47 @@ begin
           //here we write the number of instances of a repeated
           //type or a varint that was previously written.
           if(packed_repeated) begin
-            wr_en_o     <= 1;
-            data_o[31 : 0] <= num_values;
-            byte_sel_o    <= 8'b00001111;
-            addr_o   <= protobuf_pkg::GET_OFFSET(fieldMetaData) - 4 + baseAddressStack[numActiveMsgs];
+            wr_en_o     = 1;
+            data_o[31 : 0] = num_values;
+            byte_sel_o    = 8'b00001111;
+            addr_o   = user_tree_pkg::ADDRESS_SIZE'(protobuf_pkg::GET_OFFSET(fieldMetaData)) - 4 + baseAddressStack[numActiveMsgs];
           end
         end
 
         LENGTH_DELIMITED_DECODE : begin
           //here we write the pointer in the struct to either this 
           //embedded message or this array/repeated value
-          wr_en_o     <= 1;
-          data_o[31 : 0] <= write_address_tail;
-          byte_sel_o    <= 8'b00001111;
-          addr_o   <= protobuf_pkg::GET_OFFSET(fieldMetaData) + baseAddressStack[numActiveMsgs];
+          wr_en_o     = 1;
+          data_o[31 : 0] = dest_base_addr + 32'(write_address_tail);
+          byte_sel_o    = 8'b00001111;
+          addr_o   = baseAddressStack[numActiveMsgs] + user_tree_pkg::ADDRESS_SIZE'(protobuf_pkg::GET_OFFSET(fieldMetaData));
         end
 
         VARINT_DECODE : begin
           for(int i=0; i<protobuf_pkg::MAX_VARINT_BYTES; i++) begin
-            data_o[(i*7)+7 -: 7] <= varint_reg[i]; 
+            data_o[(i*7)+7 -: 7] = varint_reg[i]; 
           end
-          data_o[(varint_count*7)+7 -: 7] <= protoStream_i[6:0];
+          data_o[(varint_count*7)+7 -: 7] = protoStream_i[6:0];
           if (!protoStream_i[7]) begin
-            wr_en_o <= 1;
+            wr_en_o = 1;
           end
           for(int i=0; i<8; i++) begin
             if (i < protobuf_pkg::GET_BYTE_SIZE(fieldMetaData))
-              byte_sel_o[i] <= 1;
+              byte_sel_o[i] = 1;
             else
-              byte_sel_o[i] <= 0;
+              byte_sel_o[i] = 0;
           end
           if (packed_repeated)
-            addr_o     <= write_address_tail;
+            addr_o     = write_address_tail;
           else
-            addr_o     <= protobuf_pkg::GET_OFFSET(fieldMetaData) + baseAddressStack[numActiveMsgs];
+            addr_o     = user_tree_pkg::ADDRESS_SIZE'(protobuf_pkg::GET_OFFSET(fieldMetaData)) + baseAddressStack[numActiveMsgs];
         end
 
         DECODE_UNTIL_DELIMIT : begin
-          wr_en_o <= 1;
-          data_o[7:0] <= protoStream_i;
-          byte_sel_o <= 8'b00000001; //1 byte
-          addr_o     <= write_address_tail;
+          wr_en_o = 1;
+          data_o[7:0] = protoStream_i;
+          byte_sel_o = 8'b00000001; //1 byte
+          addr_o     = write_address_tail;
         end
 
         default : begin 
@@ -230,10 +235,11 @@ begin
 
     messageStartCount = 0;
     messageEndCount   = 0;
+    message_exists <= 0;
 
     if (reset_i == 1) begin
       numActiveMsgs <= 0;
-      baseAddressStack <= '0;
+      baseAddressStack <= '{default:'0};
     end
     else begin            
       if (state == LENGTH_DELIMITED_DECODE) begin

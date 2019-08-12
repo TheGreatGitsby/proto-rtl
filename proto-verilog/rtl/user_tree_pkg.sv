@@ -24,6 +24,11 @@ package user_tree_pkg;
    //after the node address is found
    parameter MAX_FIELDS_PER_MSG = 4;
 
+   //this is the size of the user address space. no message should be
+   //larger than this size (considering all embedded messages and repeated
+   //values)
+   parameter ADDRESS_SIZE = 16;
+
    //Data Type
    // bit 0 - 32b, 
    // bit 1 - 64b, 
@@ -43,6 +48,7 @@ package user_tree_pkg;
    
    //TODO:  This number is calculated. This is the largest message size (in
    //bytes) only considering pointers for repeated/embedded msgs.
+   // NOTE - This is for a single msg not considering embedded msgs.
    parameter MAX_MSG_SIZE = $bits(256);
    typedef logic[MAX_MSG_SIZE - 1 : 0] msg_size;
 

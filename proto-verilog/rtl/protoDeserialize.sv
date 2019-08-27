@@ -6,7 +6,7 @@ module protoDeserialize
 (
   input    logic [7:0]  protoStream_i,
   input    logic        protoStream_valid_i,
-  input    logic [31:0] dest_base_addr,
+  input    logic [31:0] dest_base_addr, //this is the translation address base from system memory
 
   output   logic        wr_en_o,
   output   logic [7:0]  byte_sel_o,
@@ -76,8 +76,8 @@ begin
         packed_repeated <= 0;
 
         //update tail_ptr if this is the start of a new msg
-        if(message_exists)
-          write_address_tail <= write_address_tail + user_tree_pkg::ADDRESS_SIZE'(protobuf_pkg::GET_MSG_SIZE(msg_meta_data)); 
+        //if(message_exists)
+        //  write_address_tail <= write_address_tail + user_tree_pkg::ADDRESS_SIZE'(protobuf_pkg::GET_MSG_SIZE(msg_meta_data)); 
 
 
         if (protoStream_valid_i) begin 
@@ -112,6 +112,7 @@ begin
         // TODO: add if(field_metadata_valid)
         if (protobuf_pkg::IS_EMBEDDED_MSG(fieldMetaData)) begin
           state <= KEY_DECODE;
+          write_address_tail <= write_address_tail + user_tree_pkg::ADDRESS_SIZE'(protobuf_pkg::GET_MSG_SIZE(msg_meta_data)); 
         end
         else begin
           delimitCount    <= protoStream_i;
@@ -176,7 +177,7 @@ begin
         KEY_DECODE: begin
           //here we write the number of instances of a repeated
           //type or a varint that was previously written.
-          if(packed_repeated) begin
+          if(packed_repeated == 1) begin
             wr_en_o     = 1;
             data_o[31 : 0] = num_values;
             byte_sel_o    = 8'b00001111;

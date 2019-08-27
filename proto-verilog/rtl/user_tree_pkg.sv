@@ -57,22 +57,22 @@ package user_tree_pkg;
    const proto_fieldMetaData null_field = '0;
 
    // Address Book Message
-   const msg_size AddressBook_minSize        =  256; //not accurate, should calculate
+   const msg_size AddressBook_minSize        =  256; //TODO:not accurate, should calculate
    const proto_fieldMetaData people = {1'b0, 1'b1, 8'h00, 1'b1, 3'b000, 4'h1};
    const node_data AddressBook_msg = {AddressBook_minSize, null_field, null_field, null_field, people};
 
    // Person Message
-   const msg_size Person_minSize             =  256; //not accurate, should calculate
-   const proto_fieldMetaData name   = {1'b0, 1'b1, 8'h04, 1'b0, 3'b000, 4'h1};
-   const proto_fieldMetaData id     = {1'b0, 1'b1, 8'h08, 1'b0, 3'b101, 4'h2};
-   const proto_fieldMetaData email  = {1'b0, 1'b0, 8'h0C, 1'b0, 3'b000, 4'h3};
-   const proto_fieldMetaData phones = {1'b1, 1'b0, 8'h10, 1'b1, 3'b000, 4'h4};
+   const msg_size Person_minSize             =  256; //TODO:not accurate, should calculate
+   const proto_fieldMetaData name   = {1'b0, 1'b1, 8'h00, 1'b0, 3'b000, 4'h1};
+   const proto_fieldMetaData id     = {1'b0, 1'b1, 8'h04, 1'b0, 3'b101, 4'h2};
+   const proto_fieldMetaData email  = {1'b0, 1'b0, 8'h08, 1'b0, 3'b000, 4'h3};
+   const proto_fieldMetaData phones = {1'b1, 1'b0, 8'h0c, 1'b1, 3'b000, 4'h4};
    const node_data Person_msg       = {Person_minSize, name, id, email, phones};
 
    // Phone Number Message
-   const msg_size PhoneNumber_minSize             =  256; //not accurate, should calculate
-   const proto_fieldMetaData PhoneNumber_number   = {1'b0, 1'b1, 8'h14, 1'b0, 3'b000, 4'h1};
-   const proto_fieldMetaData PhoneNumber_type     = {1'b0, 1'b0, 8'h18, 1'b0, 3'b001, 4'h2};
+   const msg_size PhoneNumber_minSize        =  256; //TODO:not accurate, should calculate
+   const proto_fieldMetaData PhoneNumber_number   = {1'b0, 1'b1, 8'h00, 1'b0, 3'b000, 4'h1};
+   const proto_fieldMetaData PhoneNumber_type     = {1'b0, 1'b0, 8'h04, 1'b0, 3'b001, 4'h2};
    const node_data PhoneNumber_msg = {PhoneNumber_minSize, null_field, null_field, PhoneNumber_type, PhoneNumber_number};
 
    typedef node_data [NUM_MSGS:0] node_ROM;

@@ -44,7 +44,9 @@ int main(int argc, char **argv)
 
    while(!Verilated::gotFinish())
    {
+
       tb->clk_i = 1;
+      tb->eval();
       edge_cnt++;
 
       //do some rising edge stuff
@@ -58,17 +60,16 @@ int main(int argc, char **argv)
          tb->protoStream_i = ((uint8_t*)buf)[byte_count++];
       }
       
-      tb->eval();
 
       if(edge_cnt < 1000)
          trace->dump(edge_cnt);
 
       tb->clk_i = 0;
+      tb->eval();
       edge_cnt++;
 
       //do some falling edge stuff
 
-      tb->eval();
 
       if(edge_cnt < 1000)
          trace->dump(edge_cnt);
